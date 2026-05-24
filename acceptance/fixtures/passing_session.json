@@ -1,0 +1,17 @@
+{
+  "session_id": "fixture-pass-0001",
+  "act": "act_2",
+  "note": "A predictable-and-modelled player. top-1 = 0.70, most-frequent baseline = 0.40, margin = +0.30 -> PASS.",
+  "decision_points": [
+    {"scene_id": "act2_s01", "predicted_actions": ["question_researcher", "inspect_exit_interface", "comply_reluctantly"], "actual_action": "question_researcher"},
+    {"scene_id": "act2_s02", "predicted_actions": ["question_researcher", "remain_silent"], "actual_action": "question_researcher"},
+    {"scene_id": "act2_s03", "predicted_actions": ["question_researcher", "challenge_researcher"], "actual_action": "question_researcher"},
+    {"scene_id": "act2_s04", "predicted_actions": ["comply_reluctantly", "question_researcher"], "actual_action": "question_researcher"},
+    {"scene_id": "act2_s05", "predicted_actions": ["inspect_exit_interface", "remain_silent"], "actual_action": "inspect_exit_interface"},
+    {"scene_id": "act2_s06", "predicted_actions": ["inspect_exit_interface", "challenge_researcher"], "actual_action": "inspect_exit_interface"},
+    {"scene_id": "act2_s07", "predicted_actions": ["comply_reluctantly", "question_researcher"], "actual_action": "comply_reluctantly"},
+    {"scene_id": "act2_s08", "predicted_actions": ["question_researcher", "inspect_exit_interface"], "actual_action": "remain_silent"},
+    {"scene_id": "act2_s09", "predicted_actions": ["inspect_exit_interface", "comply_reluctantly"], "actual_action": "challenge_researcher"},
+    {"scene_id": "act2_s10", "predicted_actions": ["inspect_exit_interface", "question_researcher"], "actual_action": "inspect_exit_interface"}
+  ]
+}

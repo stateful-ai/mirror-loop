@@ -1,0 +1,17 @@
+{
+  "session_id": "fixture-fail-0001",
+  "act": "act_2",
+  "note": "A repetitive player the dumb baseline already nails. top-1 = 0.60 (hits the accuracy floor) but most-frequent baseline = 0.60, margin = 0.00 -> FAIL. The model rode the baseline; it added no signal.",
+  "decision_points": [
+    {"scene_id": "act2_s01", "predicted_actions": ["comply_reluctantly", "question_researcher"], "actual_action": "comply_reluctantly"},
+    {"scene_id": "act2_s02", "predicted_actions": ["comply_reluctantly", "remain_silent"], "actual_action": "comply_reluctantly"},
+    {"scene_id": "act2_s03", "predicted_actions": ["comply_reluctantly", "inspect_exit_interface"], "actual_action": "comply_reluctantly"},
+    {"scene_id": "act2_s04", "predicted_actions": ["comply_reluctantly", "challenge_researcher"], "actual_action": "comply_reluctantly"},
+    {"scene_id": "act2_s05", "predicted_actions": ["comply_reluctantly", "question_researcher"], "actual_action": "comply_reluctantly"},
+    {"scene_id": "act2_s06", "predicted_actions": ["comply_reluctantly", "remain_silent"], "actual_action": "comply_reluctantly"},
+    {"scene_id": "act2_s07", "predicted_actions": ["comply_reluctantly", "inspect_exit_interface"], "actual_action": "question_researcher"},
+    {"scene_id": "act2_s08", "predicted_actions": ["comply_reluctantly", "remain_silent"], "actual_action": "inspect_exit_interface"},
+    {"scene_id": "act2_s09", "predicted_actions": ["comply_reluctantly", "challenge_researcher"], "actual_action": "remain_silent"},
+    {"scene_id": "act2_s10", "predicted_actions": ["comply_reluctantly", "question_researcher"], "actual_action": "challenge_researcher"}
+  ]
+}
