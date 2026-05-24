@@ -844,6 +844,8 @@ agent draft → schema validation → consistency check → simulation smoke tes
 
 ## 18. Working Title Ideas
 
+**Canonical project name: Mirror Loop** (decided; see `docs/RECONCILIATION.md`). The names below are retained as historical brainstorm.
+
 - The Experience
 - Calibration
 - Participant Zero
