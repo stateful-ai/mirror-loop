@@ -87,8 +87,9 @@ class CallStats:
 
     ``cost_per_call_usd`` is the **per-adaptation** cost — one content decision is
     one call. Latency percentiles are over every jittered sample; cost figures are
-    over the corpus (output tokens are fixed by the task, so cost varies only with
-    each prompt's real input size).
+    over the corpus. ``output_tokens`` is the task budget on an offline run (every
+    prompt requests the same length) and the mean of the endpoint's reported usage on
+    a live run — the same count the cost is computed from, either way.
     """
 
     model: str
@@ -143,6 +144,9 @@ class Report:
     session_profile: SessionProfile
     call_stats: tuple[CallStats, ...]
     session_costs: tuple[SessionCost, ...]
+    #: "modeled" (offline simulator) | "measured" (live endpoint). Carried so a
+    #: modeled latency is never presented as an observation.
+    latency_kind: str = "modeled"
     schema_version: int = SCHEMA_VERSION
 
     def stat(self, model: str, point: InsertionPoint) -> CallStats:
@@ -164,6 +168,7 @@ class Report:
                 "seed": self.seed,
                 "trials": self.trials,
                 "world": self.world_name,
+                "latency_kind": self.latency_kind,
             },
             "session_profile": self.session_profile.to_dict(),
             "call_stats": [s.to_dict() for s in self.call_stats],
@@ -184,12 +189,15 @@ def _measure_pair(
     spec = INSERTION_POINTS[point]
     latencies: list[float] = []
     input_tokens: list[int] = []
+    output_tokens: list[int] = []
     per_call_costs: list[float] = []
     for prompt in prompts:
-        # Cost is per prompt (output tokens fixed; input deterministic), latency is
-        # per trial (jittered) — so a prompt contributes one cost and many latencies.
+        # Cost and tokens are per prompt (input deterministic; output is the budget
+        # offline, but the live endpoint may return fewer), latency is per trial
+        # (jittered) — so a prompt contributes one cost and many latencies.
         first = client.complete(prompt, model=model, trial=0)
         input_tokens.append(first.input_tokens)
+        output_tokens.append(first.output_tokens)
         per_call_costs.append(model.cost_usd(first.input_tokens, first.output_tokens))
         latencies.append(first.latency_ms)
         for trial in range(1, trials):
@@ -206,7 +214,9 @@ def _measure_pair(
         latency_p95_ms=percentile(latencies, 95),
         cost_per_call_usd=percentile(per_call_costs, 50),
         mean_input_tokens=mean(input_tokens),
-        output_tokens=spec.expected_output_tokens,
+        # The output count cost is actually computed from: the budget offline (all
+        # prompts equal), the mean of the endpoint's reported usage on a live run.
+        output_tokens=round(mean(output_tokens)),
     )
 
 
@@ -264,6 +274,7 @@ def measure(
         session_profile=profile,
         call_stats=tuple(call_stats),
         session_costs=tuple(session_costs),
+        latency_kind=getattr(client, "latency_kind", "modeled"),
     )
 
 
@@ -279,22 +290,49 @@ def _usd(amount: float) -> str:
     return f"${amount:.4f}"
 
 
+def _latency(ms: float, kind: str) -> str:
+    """Format a latency for display, with precision honest about its provenance.
+
+    A **measured** latency is a real observation, so it is shown to the millisecond.
+    A **modeled** latency is the output of assumed constants, so it is shown coarsely
+    (tenths of a second, with a leading ``~``) — quoting an invented number to the
+    millisecond would imply a precision the model does not have.
+    """
+    if kind == "measured":
+        return f"{ms:.0f} ms"
+    return f"~{ms / 1000:.1f} s"
+
+
 def render_report(report: Report) -> str:
     """Render the report as a human-readable markdown document."""
+    kind = report.latency_kind
+    measured = kind == "measured"
     lines: list[str] = []
-    lines.append("# LLM cost/latency — offline harness measurement")
+    lines.append(f"# LLM cost/latency — {'live' if measured else 'offline'} harness")
     lines.append("")
     lines.append(
         f"seed={report.seed} · trials/prompt={report.trials} · "
-        f"world={report.world_name!r}"
+        f"world={report.world_name!r} · latency={kind}"
     )
+    lines.append("")
+    if measured:
+        lines.append(
+            "Cost is exact (provider-reported usage × list price); "
+            "**latency is measured** wall-clock against the live endpoint."
+        )
+    else:
+        lines.append(
+            "Cost is exact (real token counts × list price); **latency is modeled** "
+            "— an analytic per-model profile, *not* live-measured — and shown coarsely "
+            "to avoid false precision. Run `python -m llmbench --live` to measure it."
+        )
     lines.append("")
 
     lines.append("## Latency and per-adaptation cost (per model × insertion point)")
     lines.append("")
     lines.append(
         "| Model | Insertion point | Path | in tok | out tok | "
-        "p50 latency | p95 latency | cost/call |"
+        f"p50 latency ({kind}) | p95 latency ({kind}) | cost/call |"
     )
     lines.append("|---|---|---|---:|---:|---:|---:|---:|")
     for stat in report.call_stats:
@@ -303,7 +341,8 @@ def render_report(report: Report) -> str:
         lines.append(
             f"| {stat.model} | {spec.label} | {path} | "
             f"{stat.mean_input_tokens:.0f} | {stat.output_tokens} | "
-            f"{stat.latency_p50_ms:.0f} ms | {stat.latency_p95_ms:.0f} ms | "
+            f"{_latency(stat.latency_p50_ms, kind)} | "
+            f"{_latency(stat.latency_p95_ms, kind)} | "
             f"{_usd(stat.cost_per_call_usd)} |"
         )
     lines.append("")

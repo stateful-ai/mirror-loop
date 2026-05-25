@@ -10,7 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from llmbench.client import Completion, SimulatedClient
+import json
+
+from llmbench.client import Completion, LiveClient, SimulatedClient
 from llmbench.models import HAIKU, OPUS
 from llmbench.prompts import InsertionPoint, build_corpus
 from llmbench.tokens import estimate_tokens
@@ -82,6 +84,75 @@ def test_completion_is_a_frozen_record():
         pass
     else:  # pragma: no cover - defends the frozen contract
         raise AssertionError("Completion must be frozen")
+
+
+def test_simulated_client_reports_modeled_latency():
+    assert SimulatedClient().latency_kind == "modeled"
+
+
+# --- LiveClient: the real-measurement path, exercised without a network --------
+#
+# LiveClient is opt-in and never runs in CI against the real endpoint, so these
+# tests inject a fake transport (the request/response mapping) and a fake clock
+# (the latency timing) to prove the contract offline.
+
+
+def _fake_usage_response(input_tokens=123, output_tokens=45):
+    return {
+        "content": [{"type": "text", "text": "ignored — quality is out of scope"}],
+        "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
+    }
+
+
+def test_live_client_reports_measured_latency_kind():
+    assert LiveClient(api_key="k").latency_kind == "measured"
+
+
+def test_live_client_times_the_call_and_uses_reported_usage():
+    prompt = _a_prompt()
+    captured = {}
+
+    def transport(url, payload, headers):
+        captured["url"] = url
+        captured["payload"] = json.loads(payload.decode("utf-8"))
+        captured["headers"] = headers
+        return _fake_usage_response(input_tokens=200, output_tokens=64)
+
+    # A clock that advances 1.5 s between the two reads bracketing the call.
+    ticks = iter([10.0, 11.5])
+    client = LiveClient(api_key="secret", transport=transport, clock=lambda: next(ticks))
+    result = client.complete(prompt, model=HAIKU, trial=0)
+
+    # Latency is the *measured* elapsed wall-clock, not a modeled profile value.
+    assert result.latency_ms == pytest.approx(1500.0)
+    # Token counts come from the provider's reported usage, not the estimator.
+    assert result.input_tokens == 200
+    assert result.output_tokens == 64
+    assert result.model == HAIKU.name
+
+
+def test_live_client_builds_a_well_formed_anthropic_request():
+    prompt = _a_prompt()
+    captured = {}
+
+    def transport(url, payload, headers):
+        captured["url"] = url
+        captured["body"] = json.loads(payload.decode("utf-8"))
+        captured["headers"] = headers
+        return _fake_usage_response()
+
+    LiveClient(api_key="secret", clock=lambda: 0.0, transport=transport).complete(
+        prompt, model=OPUS, trial=0
+    )
+
+    assert captured["url"].endswith("/v1/messages")
+    assert captured["headers"]["x-api-key"] == "secret"
+    assert captured["headers"]["anthropic-version"]
+    body = captured["body"]
+    assert body["model"] == OPUS.name
+    assert body["max_tokens"] == prompt.expected_output_tokens
+    assert body["system"] == prompt.system
+    assert body["messages"] == [{"role": "user", "content": prompt.user}]
 
 
 def test_latency_is_independent_of_pythonhashseed():

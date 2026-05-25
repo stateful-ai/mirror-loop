@@ -7,6 +7,7 @@ import json
 import pytest
 
 from game.world import DEFAULT_WORLD
+from llmbench.client import LiveClient
 from llmbench.harness import (
     DEFAULT_TRIALS,
     SessionProfile,
@@ -104,6 +105,33 @@ def test_render_report_is_markdown_with_every_model():
     for model in CANDIDATE_MODELS:
         assert model.name in text
     assert "Per-session cost" in text
+
+
+def test_offline_report_is_labelled_modeled_and_avoids_false_precision():
+    report = measure(trials=10)
+    assert report.latency_kind == "modeled"
+    assert report.to_dict()["run"]["latency_kind"] == "modeled"
+    text = render_report(report)
+    # The latency columns must say "modeled", and modeled values are coarse (~N.N s),
+    # never quoted to the millisecond as if observed.
+    assert "p50 latency (modeled)" in text
+    assert "latency is modeled" in text
+    latency_table = text.split("## Per-session cost")[0]
+    assert " ms |" not in latency_table  # no millisecond figures for modeled latency
+
+
+def test_measure_propagates_a_clients_measured_latency_kind():
+    # A live/measured client (here with an injected transport + clock so no network
+    # is touched) makes the whole report — and its rendering — report "measured".
+    def transport(url, payload, headers):
+        return {"usage": {"input_tokens": 100, "output_tokens": 50}}
+
+    client = LiveClient(api_key="k", transport=transport, clock=lambda: 0.0)
+    report = measure(trials=3, client=client)
+    assert report.latency_kind == "measured"
+    text = render_report(report)
+    assert "p95 latency (measured)" in text
+    assert "latency is measured" in text
 
 
 def test_report_to_dict_is_json_serialisable():
