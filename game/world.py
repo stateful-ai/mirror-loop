@@ -87,11 +87,6 @@ class World:
     def length(self) -> int:
         return len(self.slots)
 
-    def scene_for_loop(self, index: int, state: PlayerState) -> tuple[Scene | None, str]:
-        if index >= len(self.slots):
-            return None, "end"
-        return self.slots[index].pick(state)
-
 
 # --- Authored content --------------------------------------------------------
 # Helper so every scene keeps the same kindness/control/defiance choice spine

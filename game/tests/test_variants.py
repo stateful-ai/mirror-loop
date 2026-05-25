@@ -25,6 +25,7 @@ from __future__ import annotations
 import pytest
 
 from acceptance.predictability import evaluate
+from loop.core import PlayerState, Scene
 
 from game.session import (
     MAX_LOOPS,
@@ -42,8 +43,19 @@ from game.variants import (
     build_variant,
     random_variant,
 )
+from game.world import DEFAULT_WORLD
 
 ALL_VARIANTS: tuple[Variant, ...] = (ADAPTIVE, FIXED, random_variant(0))
+
+
+def _lean(tendency: str) -> PlayerState:
+    """A state that leans ``tendency`` twice, via a real choice from the spine."""
+    state = PlayerState()
+    choice = next(
+        c for c in DEFAULT_WORLD.slots[0].fixed.choices if c.tendency == tendency
+    )
+    scene = Scene(id="lean", prompt="", choices=(choice,))
+    return state.record(scene, choice).record(scene, choice)
 
 
 def _prompts(session) -> list[str]:
@@ -69,6 +81,34 @@ def test_every_variant_plays_the_same_spine(variant):
         "confrontation",
         "exit",
     ]
+
+
+@pytest.mark.parametrize("variant", ALL_VARIANTS)
+def test_select_scene_is_total_for_every_variant(variant):
+    # The session loop walks every slot and feeds the result straight to the core
+    # step with no None-guard: the seam must be *total*. Pin that each variant
+    # returns a real Scene and a non-empty branch key for every slot, under every
+    # player lean — so the baseline arms can never crash where the old per-loop
+    # ``None`` guard used to sit.
+    states = (
+        PlayerState(),
+        _lean("kindness"),
+        _lean("control"),
+        _lean("defiance"),
+    )
+    for state in states:
+        for slot in DEFAULT_WORLD.slots:
+            scene, key = variant.select_scene(slot, state)
+            assert scene is not None
+            assert key
+
+
+@pytest.mark.parametrize("variant", ALL_VARIANTS)
+def test_every_variant_runs_the_full_spine_length(variant):
+    # Session length is the spine length in every arm — the baseline does not
+    # shorten or lengthen the session, it only changes content contingency.
+    session = play_session(persona_policy("defiance"), variant=variant)
+    assert session.loop_count == DEFAULT_WORLD.length == 5
 
 
 @pytest.mark.parametrize("variant", ALL_VARIANTS)

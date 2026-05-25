@@ -131,6 +131,11 @@ def play_session(
     state = PlayerState()
     records: list[LoopRecord] = []
 
+    # Walk the spine slot by slot. The session length is exactly the spine length
+    # (the bound below asserts it lands in 3–5) — there is no early exit: the seam
+    # is total, returning a real Scene for every slot regardless of variant or
+    # player state (pinned in test_variants/test_world), so nothing here can be
+    # None or short-circuit the loop.
     for i, slot in enumerate(world.slots):
         declared, branch_key = variant.select_scene(slot, state)
         offered = variant.order_choices(mirror, state, declared)
