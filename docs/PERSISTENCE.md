@@ -98,6 +98,16 @@ equivalent persona (`test_resumed_session_completes_identically_to_the_one_shot_
 and the byte-identity golden gate (`python -m game.replay --check`) is unmoved by
 this change.
 
+That golden gate pins the *baseline* (`random`) arm, which never adapts. So the
+**adaptive** survives-reload behavior gets its own committed gate: a snapshot of
+the kind run driven through a real save/reload
+([`game/fixtures/adaptive_kind_resumed.json`](../game/fixtures/adaptive_kind_resumed.json),
+regenerated with `python -m game.playsession --write-golden`) that
+`test_resumed_adaptive_run_is_byte_identical_to_a_committed_golden` replays
+against. Because the in-process fidelity tests would let both sides drift together
+under a code change, this on-disk golden is what makes a silent change to *what a
+resumed loop shows* fail loudly.
+
 ## 4. Lost on quit is acceptable for v0
 
 This is *within*-session persistence: durability across a save/reload **inside one

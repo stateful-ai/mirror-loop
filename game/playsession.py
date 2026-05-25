@@ -314,7 +314,60 @@ def demo() -> str:  # pragma: no cover - exercised via the public API in tests
     return "\n".join(lines)
 
 
-def main() -> int:  # pragma: no cover - thin CLI wrapper
+#: The committed golden snapshot of the adaptive arm driven through a save/reload.
+#: ``game/tests/test_playsession.py`` replays against it so a code change that
+#: silently altered what a resumed loop shows fails loudly. Regenerate with
+#: ``python -m game.playsession --write-golden`` after an intended, reviewed change.
+GOLDEN_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "adaptive_kind_resumed.json"
+
+
+def _resumed_golden_snapshot() -> str:
+    """Serialize the adaptive ``_KIND_LOG`` run, driven through a real save/reload.
+
+    Uses :class:`game.replay.RunResult` — the same determinism-audited serializer
+    the baseline byte-identity gate uses — so the golden is in the canonical
+    snapshot form (sorted keys, no clock/PID/RNG).
+    """
+    from .replay import RunResult  # local import: avoid a package import cycle
+
+    live = PlaySession()
+    for choice_id in _KIND_LOG[:_SAVE_AFTER]:
+        live.play(choice_id)
+    resumed = PlaySession.from_json(live.to_json())
+    for choice_id in _KIND_LOG[_SAVE_AFTER:]:
+        resumed.play(choice_id)
+    return RunResult(
+        seed=0,  # adaptive ignores the seed; the input log fully determines the run
+        variant=ADAPTIVE.name,
+        world_name=DEFAULT_WORLD.name,
+        input_log=_KIND_LOG,
+        session=resumed.completed(),
+    ).to_json()
+
+
+def write_golden() -> str:
+    """(Re)generate the adaptive persistence golden fixture; return its JSON."""
+    text = _resumed_golden_snapshot()
+    GOLDEN_FIXTURE.parent.mkdir(parents=True, exist_ok=True)
+    GOLDEN_FIXTURE.write_text(text, encoding="utf-8")
+    return text
+
+
+def main(argv: list[str] | None = None) -> int:  # pragma: no cover - thin CLI wrapper
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(prog="python -m game.playsession")
+    parser.add_argument(
+        "--write-golden",
+        action="store_true",
+        help="(re)generate the adaptive save/reload golden fixture the tests pin",
+    )
+    args = parser.parse_args(argv)
+    if args.write_golden:
+        write_golden()
+        print(f"wrote golden fixture: {GOLDEN_FIXTURE}", file=sys.stderr)
+        return 0
     print(demo())
     return 0
 

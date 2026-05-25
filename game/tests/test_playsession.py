@@ -22,11 +22,14 @@ thing doing the work.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from loop.core import Mirror, PlayerState
 
 from game.playsession import SCHEMA_VERSION, PlaySession
+from game.replay import RunResult
 from game.session import (
     LoopRecord,
     offer_scene,
@@ -36,6 +39,15 @@ from game.session import (
 )
 from game.variants import ADAPTIVE, FIXED, build_variant, random_variant
 from game.world import CONFRONTATION, DEFAULT_WORLD, Slot, World
+
+#: A committed snapshot of the adaptive arm driven *through* a save/reload. The
+#: baseline (``random``) arm already has a golden byte-identity gate in
+#: ``game/fixtures/baseline_seed42.json``, but that arm never adapts — so nothing
+#: on disk pins the *adaptive* survives-reload behaviour. This fixture does, so a
+#: code change that silently altered what a resumed loop shows fails loudly here.
+ADAPTIVE_RESUMED_GOLDEN = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "adaptive_kind_resumed.json"
+)
 
 # A consistently kind player: one choice id per slot of DEFAULT_WORLD, each the
 # kindness option. Loops: intake, records, corridor, confrontation, exit.
@@ -205,6 +217,39 @@ def test_resumed_session_completes_identically_to_the_one_shot_runner():
 
     one_shot = play_session(persona_policy("kindness"))
     assert transcript(resumed.completed()) == transcript(one_shot)
+
+
+def test_resumed_adaptive_run_is_byte_identical_to_a_committed_golden():
+    """A committed determinism gate for the *adaptive* survives-reload path.
+
+    The in-process equality tests above prove a resumed session matches the live
+    one — but under a code change both sides drift together, so they cannot catch a
+    change that silently alters what a resumed loop shows. The baseline golden in
+    :mod:`game.replay` does pin output to disk, but only for the non-adaptive arm.
+    This pins the adaptive arm, driven through a real save/reload, to a committed
+    snapshot (serialized by the same determinism-audited :class:`RunResult`), so
+    any nondeterminism or unintended change in the adaptation fails loudly.
+
+    If a change here is intended, regenerate the fixture with
+    ``python -m game.playsession --write-golden``.
+    """
+    live = PlaySession()
+    _play(live, KIND_LOG[:SAVE_AFTER])
+    resumed = PlaySession.from_json(live.to_json())
+    _play(resumed, KIND_LOG[SAVE_AFTER:])
+
+    snapshot = RunResult(
+        seed=0,  # adaptive ignores the seed; the input log fully determines it
+        variant="adaptive",
+        world_name=DEFAULT_WORLD.name,
+        input_log=KIND_LOG,
+        session=resumed.completed(),
+    ).to_json()
+
+    assert snapshot == ADAPTIVE_RESUMED_GOLDEN.read_text(encoding="utf-8"), (
+        "the resumed adaptive run drifted from its committed golden; if this change "
+        "was intended, regenerate game/fixtures/adaptive_kind_resumed.json"
+    )
 
 
 def test_seeded_placebo_variant_round_trips_exactly():
