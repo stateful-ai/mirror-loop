@@ -1,0 +1,41 @@
+{
+  "package_id": "intake-cluster",
+  "scenes": [
+    {
+      "id": "intake",
+      "prompt": "The intake technician's hands shake as she fits the headset to your head.",
+      "choices": [
+        {
+          "id": "c_reassure",
+          "text": "Reassure her — tell her to take her time.",
+          "tendency": "kindness",
+          "evidence": "reassured the technician at intake"
+        },
+        {
+          "id": "c_measure",
+          "text": "Ask precisely what the headset measures before continuing.",
+          "tendency": "control",
+          "evidence": "interrogated the headset's measurements at intake"
+        },
+        {
+          "id": "c_refuse",
+          "text": "Refuse the headset until someone explains the exit procedure.",
+          "tendency": "defiance",
+          "evidence": "refused the headset at intake"
+        }
+      ]
+    }
+  ],
+  "reflections": [
+    {
+      "tendency": "kindness",
+      "count": 3,
+      "total": 3,
+      "evidence": [
+        "reassured the technician at intake",
+        "left another participant's file closed",
+        "guided a disoriented participant to safety"
+      ]
+    }
+  ]
+}
