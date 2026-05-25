@@ -21,13 +21,18 @@ This package is the runnable game layer that sits on top of the locked core loop
   canonical state that reproduces byte-for-byte (the byte-identity gate),
 * :mod:`game.instrumentation` — the seed-anchored replay log of the *adaptive*
   run: every input, Mirror transition, and fired adaptation, with the Reflection
-  beat locatable from the log and a deterministic state hash pinned across runs.
+  beat locatable from the log and a deterministic state hash pinned across runs,
+* :mod:`game.playtest` — the blind A/B playtest: a seeded population played
+  through the adaptive arm and a non-adaptive baseline, each session scored
+  against the locked acceptance metric, with a pre-registered decision rule
+  yielding a PASS / FAIL / INCONCLUSIVE verdict (``docs/PLAYTEST_METHOD.md``).
 
 Play it with ``python -m game`` (interactive), ``python -m game --demo``
 (a scripted persona), or ``python -m game --variant fixed`` (a baseline arm).
-Replay the seeded baseline with ``python -m game.replay``, or trace and locate
-the adaptive run's events with ``python -m game.instrumentation``. Nothing here
-makes a network call or loads a model.
+Replay the seeded baseline with ``python -m game.replay``, trace and locate
+the adaptive run's events with ``python -m game.instrumentation``, or run the
+blind A/B with ``python -m game.playtest``. Nothing here makes a network call or
+loads a model.
 """
 
 from .adapt import AdaptedSlot, AdaptedWorld, adapt, adapt_slot
