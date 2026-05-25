@@ -157,6 +157,22 @@ def test_adaptation_that_invents_a_choice_is_rejected():
     assert "ADAPTATION_REORDER_ONLY" in _ids(validate_adaptation(declared, inflated))
 
 
+def test_adaptation_that_changes_the_prompt_is_rejected():
+    # Reorder-only must keep the prompt identical (P1).
+    declared = _scene("s", _choice("a"), _choice("b", "control"))
+    reprompted = replace(declared, prompt="a wholly different prompt")
+    assert "ADAPTATION_REORDER_ONLY" in _ids(validate_adaptation(declared, reprompted))
+
+
+def test_adaptation_with_a_duplicate_choice_is_rejected():
+    # Same id *set*, but a choice doubled — must not pass the reorder check (P1).
+    declared = _scene("s", _choice("a"), _choice("b", "control"))
+    duped = replace(
+        declared, choices=(declared.choices[0], declared.choices[1], declared.choices[0])
+    )
+    assert "ADAPTATION_REORDER_ONLY" in _ids(validate_adaptation(declared, duped))
+
+
 # --- the reflection legibility / grounding contract ----------------------------
 
 

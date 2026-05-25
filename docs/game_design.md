@@ -1,3 +1,11 @@
+---
+type: stream_doc
+title: game_design
+stream: mirror-loop
+updated: '2026-05-25T03:19:39Z'
+summary: 'Game Design Document: Adaptive Narrative Experiment'
+---
+
 # Game Design Document: Adaptive Narrative Experiment
 
 ## 1. High-Level Concept

@@ -346,8 +346,35 @@ def validate_adaptation(declared: Scene, adapted: Scene) -> ValidationReport:
             )
         )
 
+    # Reorder-only re-presents the *same* scene: the prompt must be untouched.
+    if declared.prompt != adapted.prompt:
+        out.append(
+            Violation(
+                "ADAPTATION_REORDER_ONLY",
+                Severity.ERROR,
+                "adaptation changed the scene prompt; reorder-only must leave it "
+                "byte-for-byte identical",
+                where,
+            )
+        )
+
     declared_by_id = {c.id: c for c in declared.choices}
     adapted_by_id = {c.id: c for c in adapted.choices}
+
+    # Keying by id collapses duplicates, so a doubled choice would otherwise pass
+    # the set check below. Reject duplicate ids explicitly (count must be 1).
+    adapted_ids = [c.id for c in adapted.choices]
+    dup_ids = sorted({cid for cid in adapted_ids if adapted_ids.count(cid) > 1})
+    if dup_ids:
+        out.append(
+            Violation(
+                "ADAPTATION_REORDER_ONLY",
+                Severity.ERROR,
+                f"adaptation duplicated choice id(s) {dup_ids}; a reorder must "
+                "keep each choice exactly once",
+                where,
+            )
+        )
 
     if set(declared_by_id) != set(adapted_by_id):
         invented = sorted(set(adapted_by_id) - set(declared_by_id))
