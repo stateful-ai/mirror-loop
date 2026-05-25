@@ -18,8 +18,11 @@ from dataclasses import dataclass
 
 # What the terminal shows for a world with no scene loaded. Kept here, next to the
 # view it describes, so renderers and tests share one source of truth for the
-# "nothing to play yet" frame rather than each spelling it out.
-EMPTY_WORLD_NOTICE = "(empty world — no scene loaded)"
+# "nothing to play yet" frame rather than each spelling it out. Deliberately
+# ASCII-only: this string is written straight to the output stream, so a non-ASCII
+# character (e.g. an em dash) would make boot raise UnicodeEncodeError under an
+# ASCII locale such as ``PYTHONIOENCODING=ascii``.
+EMPTY_WORLD_NOTICE = "(empty world - no scene loaded)"
 
 DEFAULT_TITLE = "Mirror Loop"
 
