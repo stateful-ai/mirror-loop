@@ -28,12 +28,40 @@ from .session import (
 )
 
 
-def _play(persona: str | None) -> tuple[Session, bool]:
-    """Return the played session and whether it was interactive."""
+def _eprint(text: str) -> None:
+    """Write interactive chatter to stderr, keeping stdout for machine output."""
+    print(text, file=sys.stderr)
+
+
+def _stderr_input(prompt: str) -> str:
+    """Like ``input`` but write the prompt to stderr, so stdout stays clean.
+
+    Raises ``EOFError`` at end of input, matching ``input`` so the caller's
+    no-input fallback still fires.
+    """
+    print(prompt, end="", file=sys.stderr, flush=True)
+    line = sys.stdin.readline()
+    if line == "":
+        raise EOFError
+    return line.rstrip("\n")
+
+
+def _play(persona: str | None, *, quiet: bool = False) -> tuple[Session, bool]:
+    """Return the played session and whether it was interactive.
+
+    With ``quiet`` set (``--log``), the interactive prompts and the Mirror's live
+    reactions are routed to stderr so stdout carries only the JSON session log.
+    """
     if persona is None:
         # Interactive: a real player drives the choices and sees the Mirror react
         # live between them (so we don't re-print the whole transcript after).
-        return play_session(stdin_policy(), on_loop=live_feedback()), True
+        if quiet:
+            policy = stdin_policy(prompt=_stderr_input, out=_eprint)
+            on_loop = live_feedback(out=_eprint)
+        else:
+            policy = stdin_policy()
+            on_loop = live_feedback()
+        return play_session(policy, on_loop=on_loop), True
     if persona not in PERSONAS:
         raise SystemExit(
             f"unknown persona {persona!r}; choose one of: {', '.join(sorted(PERSONAS))}"
@@ -65,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         persona = "kind"
 
     try:
-        session, interactive = _play(persona)
+        session, interactive = _play(persona, quiet=args.log)
     except EOFError:
         # Interactive play with no input available (e.g. `python -m game
         # </dev/null`): fall back to the deterministic demo so the command still
