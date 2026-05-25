@@ -51,3 +51,20 @@ def test_log_with_persona_emits_only_json_on_stdout(capsys):
     captured = capsys.readouterr()
     _stdout_is_session_log(captured.out)
     assert captured.err == ""
+
+
+def test_variant_toggle_labels_the_log_and_keeps_stdout_pure(capsys):
+    # The A/B toggle is reflected in the (machine-readable) log; the seeded random
+    # arm stays deterministic and still emits only JSON on stdout.
+    assert main(["--log", "--persona", "kind", "--variant", "random", "--seed", "7"]) == 0
+
+    captured = capsys.readouterr()
+    log = _stdout_is_session_log(captured.out)
+    assert log["variant"] == "random"
+    assert captured.err == ""
+
+
+def test_variant_defaults_to_adaptive(capsys):
+    assert main(["--log", "--persona", "kind"]) == 0
+    log = _stdout_is_session_log(capsys.readouterr().out)
+    assert log["variant"] == "adaptive"
