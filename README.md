@@ -45,6 +45,8 @@ Player acts
 
 The LLM is not directly responsible for everything in the game loop. It is part of a content supply chain.
 
+The prototype runs **terminal-first**: a `python -m …` program, no web/GUI, no dependencies. That platform choice — and the single `Renderer` interface that keeps it reversible (a browser is later "just another renderer") — is recorded in [`docs/adr/0002-runtime-platform.md`](docs/adr/0002-runtime-platform.md) and scaffolded in [`runtime/`](runtime/). The minimal skeleton boots and renders an empty world with `python -m runtime`.
+
 The smallest runnable slice of this loop — one turn, the single adaptation type, and the visible "Mirror noticed…" reflection beat — is specified in [`docs/CORE_LOOP.md`](docs/CORE_LOOP.md) and operationalized in [`loop/`](loop/). Run the fully worked example with `python -m loop`.
 
 Those turns accumulate: a play session carries the player model and world position forward loop to loop, and survives a save/reload *within* the session so adaptations compound (a later loop re-orders or reveals content from earlier ones). How that works — persist the log, reduce the deltas — and why losing a session on quit is acceptable for v0 is documented in [`docs/PERSISTENCE.md`](docs/PERSISTENCE.md) and implemented in [`game/playsession.py`](game/playsession.py). See it with `python -m game.playsession`.
@@ -162,7 +164,9 @@ Act boundary / between sessions:
 
 ## Recommended MVP Stack
 
-Suggested starting stack:
+> **Superseded for M1 by [`docs/adr/0002-runtime-platform.md`](docs/adr/0002-runtime-platform.md).** The M1 build is terminal-first, stdlib-only, with no LLM in the loop — see the ADR for the browser-vs-terminal rationale. The stack below is the *later* aspiration once there is generated content worth a richer front-end; it slots in behind the `Renderer` interface without touching the core.
+
+Suggested (later) stack:
 
 - Frontend: React / Next.js, simple text UI
 - Backend: Node.js or FastAPI
