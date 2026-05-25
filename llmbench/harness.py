@@ -26,6 +26,7 @@ from dataclasses import dataclass
 
 from game.world import DEFAULT_WORLD, World
 
+from .budget import CriticalPathFloor, render_floor
 from .client import LLMClient, SimulatedClient
 from .metrics import mean, percentile
 from .models import CANDIDATE_MODELS, ModelSpec
@@ -37,7 +38,8 @@ from .prompts import (
 )
 
 #: Bump if the serialized :class:`Report` shape changes incompatibly.
-SCHEMA_VERSION = 1
+#: v2 adds ``critical_path_floor`` (the model-independent latency floor).
+SCHEMA_VERSION = 2
 
 #: Default jittered samples per prompt. Large enough that p50/p95 are stable run
 #: to run; small enough that a full sweep is instant (the simulator never sleeps).
@@ -144,6 +146,10 @@ class Report:
     session_profile: SessionProfile
     call_stats: tuple[CallStats, ...]
     session_costs: tuple[SessionCost, ...]
+    #: The model-independent floor under the critical-path decision: it does not use
+    #: the modeled latency constants, so the NO-GO can be read off it whether or not
+    #: a live spike has run. ``None`` only on a hand-built report without one.
+    critical_path_floor: CriticalPathFloor | None = None
     #: "modeled" (offline simulator) | "measured" (live endpoint). Carried so a
     #: modeled latency is never presented as an observation.
     latency_kind: str = "modeled"
@@ -171,6 +177,11 @@ class Report:
                 "latency_kind": self.latency_kind,
             },
             "session_profile": self.session_profile.to_dict(),
+            "critical_path_floor": (
+                self.critical_path_floor.to_dict()
+                if self.critical_path_floor is not None
+                else None
+            ),
             "call_stats": [s.to_dict() for s in self.call_stats],
             "session_costs": [c.to_dict() for c in self.session_costs],
         }
@@ -274,6 +285,7 @@ def measure(
         session_profile=profile,
         call_stats=tuple(call_stats),
         session_costs=tuple(session_costs),
+        critical_path_floor=CriticalPathFloor.for_models(models),
         latency_kind=getattr(client, "latency_kind", "modeled"),
     )
 
@@ -365,6 +377,9 @@ def render_report(report: Report) -> str:
             f"**{_usd(cost.total_usd)}** |"
         )
     lines.append("")
+
+    if report.critical_path_floor is not None:
+        lines.extend(render_floor(report.critical_path_floor))
     return "\n".join(lines)
 
 

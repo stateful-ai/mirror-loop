@@ -1,11 +1,14 @@
 # LLM Cost / Latency — Offline Harness & Go/No-Go
 
 **Status:** Decided · **Date:** 2026-05-25
-**What the harness produces:** **cost measured exactly** from real prompts, and a
-**modeled latency profile** plus a **runnable live latency spike** that measures the
-real thing on demand (`python -m llmbench --live`). The go/no-go below rests on the
-robust, model-independent comparison; the absolute milliseconds are confirmed by the
-spike, which is a command, not deferred work.
+**What the harness produces:** **cost measured exactly** from real prompts; a
+**model-independent latency floor** that the critical-path decision rests on
+(arithmetic, not assumed constants — §3); a **modeled latency profile** for
+illustration; and a **runnable live latency spike** that measures real wall-clock
+latency on demand (`python -m llmbench --live`). The headline NO-GO does **not**
+depend on the modeled milliseconds — it follows from the floor — and the spike,
+which is a command rather than deferred work, sharpens the absolute numbers when an
+endpoint is available.
 **Scope:** the harness, the numbers it produces, and a written go/no-go for **where
 (if anywhere) the LLM belongs** plus the **deterministic fallback**.
 **Implemented by:** [`llmbench/`](../llmbench/) — run `python -m llmbench` (offline)
@@ -68,17 +71,23 @@ constrain it.
   real tokenizer); prices are public **list prices as of 2026-05**. So the dollars
   are sound to within the token estimate, which a live run's reported `usage` would
   pin exactly.
-- **Latency in the tables below is modeled, not live-measured** — and is labelled
-  and rounded as such (`~N.N s`, never a false-precision millisecond figure). The
+- **The critical-path decision rests on a floor, not on the modeled latency.** The
+  go/no-go in §4 is driven by the *model-independent floor* in §3: a synchronous
+  call cannot return before it has decoded its output, so — granting a physically
+  impossible zero-network, zero-overhead endpoint — an on-path NPC line still needs
+  a decode rate no hosted model sustains. That argument uses only the call's output
+  budget and a UX threshold; it does not use the modeled milliseconds at all, which
+  is why the headline holds regardless of how a live spike lands.
+- **Latency in the per-model tables is modeled, not live-measured** — labelled and
+  rounded as such (`~N.N s`, never a false-precision millisecond figure). The
   default harness is offline by design (stdlib-only, no network/credentials,
   deterministic CI — [`docs/adr/0002-runtime-platform.md`](./adr/0002-runtime-platform.md)),
   so each model carries an analytic latency profile — fixed overhead + per-token
   decode, with seeded lognormal jitter so the sampled distribution has a realistic
-  tail — built from conservative published-throughput assumptions. **The measured
-  latency is one command away** (`python -m llmbench --live`, below): the live spike
-  is provided, not deferred. The *qualitative* decision in §4 does not depend on the
-  exact constants — the per-tier ordering and the critical-vs-off-path gap hold for
-  any reasonable profile, and a live spike only sharpens the absolute numbers.
+  tail — built from conservative published-throughput assumptions. These numbers are
+  **illustration that corroborates the floor**, not the basis of the decision.
+  **Measured latency is one command away** (`python -m llmbench --live`, below): the
+  live spike is provided, not deferred, and only sharpens the absolute numbers.
 
 The offline run is deterministic in `(seed, trials)` — the tables below regenerate
 byte-for-byte with `python -m llmbench` (seed 42, 200 trials/prompt). The live spike
@@ -88,9 +97,11 @@ the ground truth and the modeled profile is the standing estimate.
 ## 2. Results
 
 These are the **offline** run (`python -m llmbench`, seed 42, 200 trials/prompt):
-cost is exact; latency is **modeled** and shown coarsely (`~N.N s`) so an assumed
-constant is never quoted as an observation. Re-run with `--live` to replace the
-latency column with measured wall-clock numbers.
+**cost is exact; the latency columns are modeled** and shown coarsely (`~N.N s`) so
+an assumed constant is never quoted as an observation. Treat the latency here as
+illustration — the critical-path decision is read off the **model-independent floor**
+in §3, not off these milliseconds. Re-run with `--live` to replace the latency
+columns with measured wall-clock numbers.
 
 ### Latency (modeled) and per-adaptation cost (per model × insertion point)
 
@@ -122,33 +133,52 @@ world (5 loops; 3 branch slots: `records`, `corridor`, `exit`).
    even on Opus. At any plausible playtest or early-access scale, model spend is
    negligible and does **not** gate the decision.
 
-2. **Latency is the constraint, and it lives entirely on the critical path.** The
-   per-loop NPC reply is synchronous — the player waits on it. At modeled p95 that is
-   **~1.3 s (Haiku) → ~2.6 s (Sonnet) → ~4.4 s (Opus) of dead air *per loop***.
-   Across a 5-loop session that is **~6.6 s to ~22 s** of "the game is thinking"
-   the player feels directly, on a loop whose whole appeal is a snappy,
-   deterministic core. Even the fastest candidate is well past the ~100–300 ms that
-   reads as instant — and this holds with wide margin, so it does not depend on the
-   exact constants: a candidate would have to beat its modeled latency by **3–15×**
-   to reach an instant-feeling hot path, which no current-generation model does.
+2. **Latency is the constraint, and the critical-path verdict rests on a floor, not
+   on the modeled numbers.** The per-loop NPC reply is synchronous — the player waits
+   on it — and budgets ~64 output tokens. A synchronous call cannot return before it
+   has *decoded* those tokens, one at a time. So even granting a physically
+   impossible endpoint with **zero network round-trip, zero time-to-first-token, and
+   zero prefill**, the call must still sustain a decode rate of:
+
+   - **≥ 640 tok/s** to feel instant (≤ 100 ms), or
+   - **≥ 64 tok/s** to merely avoid a perceptible stall (≤ 1 s).
+
+   That requirement uses only the output budget and a standard UX threshold — **no
+   model constant**. No hosted model streams 640 tok/s; the harness emits this floor
+   directly (`## Critical-path floor` in `python -m llmbench`):
+
+   | Model | decode-only floor (64 tok) | × over instant budget | fits ≤1 s? |
+   |---|---:|---:|:--:|
+   | claude-haiku-4-5 | ~0.6 s | 5.8× | yes (only with zero network) |
+   | claude-sonnet-4-6 | ~1.2 s | 11.6× | no |
+   | claude-opus-4-7 | ~2.1 s | 21.3× | no |
+
+   A candidate would have to decode **6–21× faster than its modeled rate _and_ add no
+   network latency** to feel instant on the hot path. This is why the NO-GO does not
+   depend on the modeled milliseconds: they corroborate the floor (the §2 modeled p95
+   of ~1.3 s / ~2.6 s / ~4.4 s sits *above* each decode floor, as it must, once
+   overhead and jitter are added back), but the decision stands on the floor alone.
 
 3. **Off-path latency is affordable.** A branch candidate is authored *ahead* of
-   the player and cached, so its latency overlaps earlier loops. Haiku/Sonnet
-   finish a candidate (modeled p95 ~4 s / ~8 s) inside one loop of lead time; even
-   Opus's ~15 s p95 fits if generation starts ≥2 loops early. Nothing here is on a
-   clock the player watches.
+   the player and cached, so its latency overlaps earlier loops. By the modeled
+   profile Haiku/Sonnet finish a candidate (p95 ~4 s / ~8 s) inside one loop of lead
+   time and even Opus's ~15 s p95 fits with ≥2 loops of lead — but the point that
+   matters is structural and constant-independent: an off-path call is on no clock
+   the player watches, so any plausible latency is absorbed by precomputation.
 
 The two conclusions that drive §4 — *critical-path latency is intolerable, off-path
-latency is absorbable* — are the **ordering** and the **gap**, both robust to the
-modeled constants. The live spike (§4) sharpens the absolute milliseconds; it does
-not flip either conclusion unless a model is wildly faster than any shipping today.
+latency is absorbable* — rest on the **floor** and the **on-path/off-path
+structure**, neither of which uses the modeled constants. The live spike (§4)
+sharpens the absolute milliseconds; it cannot move the floor.
 
 ## 4. Go / No-Go decision
 
 **NO-GO on the critical path.** Do **not** place any synchronous LLM call in the
-per-loop hot path (an NPC line rendered while the player waits). No candidate
-clears a tolerable hot-path latency budget, cost notwithstanding. The hot path
-stays the deterministic templated layer.
+per-loop hot path (an NPC line rendered while the player waits). The decode-only
+floor (§3) puts even a zero-overhead call **6–21× over** an instant budget, so no
+candidate can clear a tolerable hot-path budget regardless of the modeled
+constants, cost notwithstanding. The hot path stays the deterministic templated
+layer.
 
 **Conditional GO off the critical path**, for **ahead-of-player branch authoring**
 — the generative analogue of v0's `BRANCH_SELECTION` — under these conditions:
@@ -179,9 +209,9 @@ pre-flip step that is already a command**:
    --live --model claude-haiku-4-5 --trials 20`. The harness already measures real
    latency ([`llmbench/client.py`](../llmbench/client.py) `LiveClient`); the spike is
    provided, not deferred. It confirms magnitudes — it does not gate the *decision*,
-   which the robust ordering of §3 already settles. (The spike was not run here only
-   because this offline environment has no endpoint/credentials, not because the
-   harness cannot measure it.)
+   which the model-independent floor of §3 already settles. (The spike was not run
+   here only because this offline environment has no endpoint/credentials, not
+   because the harness cannot measure it.)
 
 **Where the LLM belongs, in one line:** off the critical path, as a cached,
 guardrail-validated *supplier* of branch framings (and, later, NPC lines
@@ -205,8 +235,8 @@ behavior rather than to a stall.
 ## 6. Reproducing & maintaining
 
 ```
-python -m llmbench            # the tables above (offline; modeled latency), as markdown
-python -m llmbench --json     # the same report, machine-readable (carries latency_kind)
+python -m llmbench            # the tables above + the critical-path floor (offline), as markdown
+python -m llmbench --json     # the same report, machine-readable (carries latency_kind + critical_path_floor)
 python -m llmbench --trials 1000 --seed 7   # tighter percentiles / different jitter
 
 # Live latency spike — MEASURED wall-clock latency against the real endpoint.
@@ -228,11 +258,14 @@ the world, so they track content rather than a hardcoded constant
 
 - **Exact (offline):** per-call and per-session **cost**, given the token estimate
   and list prices.
+- **Derived (offline, the decision basis):** the **critical-path latency floor** (§3)
+  — required decode throughput from the output budget and a UX threshold, plus each
+  candidate's decode-only floor. This uses no overhead constant, so the NO-GO follows
+  from it rather than from any assumption a live spike would revise.
 - **Modeled (offline default):** **latency** (per-model analytic profile) and
-  **token counts** (~4-chars/token heuristic). Neither changes the decision — cost
-  is negligible at any constant, and the latency ordering and the critical-vs-off-path
-  gap hold across reasonable profiles. The tables present these coarsely and labelled,
-  never as observations.
+  **token counts** (~4-chars/token heuristic). These are *illustration*, not the
+  decision basis — the tables present them coarsely and labelled, never as
+  observations — and the floor above already settles the critical-path verdict.
 - **Measured (on demand, `--live`):** real wall-clock **latency** and
   provider-reported **token counts** against the live endpoint. This is the latency
   measurement the acceptance bar names; it is a runnable command, kept opt-in so the

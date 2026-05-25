@@ -148,4 +148,4 @@ def test_cli_markdown_and_json(capsys):
 
     assert main(["--trials", "5", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
