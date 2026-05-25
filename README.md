@@ -112,6 +112,11 @@ Responsibilities:
 - Ensure content stays within game-world boundaries.
 - Prevent uncontrolled references to real-world private information.
 
+The hard floor of these checks — the world invariants the Mirror cannot violate,
+plus the tone/safety bounds — is documented in [`docs/GUARDRAILS.md`](docs/GUARDRAILS.md)
+and enforced in code by [`guardrails/`](guardrails/). Validate a generated content
+package with `python -m guardrails <package.json>`.
+
 ### Engineer Agent
 
 Optional later-stage agent that can edit implementation code at safe boundaries.
@@ -245,6 +250,12 @@ Avoid personalization based on:
 - Anything scraped outside the game
 
 The game can be unsettling while still being clear that it only adapts to in-game behavior and voluntarily provided questionnaire answers.
+
+This boundary is not just a guideline: the world invariants the Mirror cannot
+violate (including "no real-world private data") are documented in
+[`docs/GUARDRAILS.md`](docs/GUARDRAILS.md) and enforced at validation by
+[`guardrails/`](guardrails/), so generated content that reaches outside the game
+is rejected before it can be promoted.
 
 ## Prototype Milestones
 

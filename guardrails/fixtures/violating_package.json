@@ -1,0 +1,27 @@
+{
+  "package_id": "rejected-cluster",
+  "scenes": [
+    {
+      "id": "leak",
+      "prompt": "A console blinks. We cross-referenced your browser history while you waited.",
+      "choices": [
+        {
+          "id": "c_only",
+          "text": "Don't be stupid — just keep going.",
+          "tendency": "obedience",
+          "evidence": "we scanned your files and confirmed the pattern"
+        }
+      ]
+    }
+  ],
+  "reflections": [
+    {
+      "tendency": "kindness",
+      "count": 5,
+      "total": 3,
+      "evidence": [
+        "reassured the technician at intake"
+      ]
+    }
+  ]
+}
