@@ -13,11 +13,15 @@ This package is the runnable game layer that sits on top of the locked core loop
 * :mod:`game.templates` — the Mirror's templated, escalating system voice,
 * :mod:`game.variants` — the single adaptation seam, so the same engine plays the
   adaptive game or a non-adaptive baseline for A/B feel-testing,
-* :mod:`game.session` — the runner that plays a full 3–5-loop session.
+* :mod:`game.session` — the runner that plays a full 3–5-loop session,
+* :mod:`game.replay` — the deterministic, seeded replay of the baseline arm: a
+  session runs end-to-end from a ``(seed, input log)`` pair and serializes to a
+  canonical state that reproduces byte-for-byte (the byte-identity gate).
 
 Play it with ``python -m game`` (interactive), ``python -m game --demo``
 (a scripted persona), or ``python -m game --variant fixed`` (a baseline arm).
-Nothing here makes a network call or loads a model.
+Replay the seeded baseline with ``python -m game.replay``. Nothing here makes a
+network call or loads a model.
 """
 
 from .adaptation import (
