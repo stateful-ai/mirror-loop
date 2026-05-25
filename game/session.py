@@ -29,7 +29,7 @@ from loop.core import Mirror, PlayerState, Scene, StepResult
 
 from .templates import SystemMessage, adapt_message, final_report
 from .variants import ADAPTIVE, Variant
-from .world import DEFAULT_WORLD, World, dominant_tendency
+from .world import DEFAULT_WORLD, Slot, World, dominant_tendency
 
 # Session length must land in the 3–5-loop target. The default world is a fixed
 # five-loop spine; the bound is asserted so any future world that strays out of
@@ -105,6 +105,76 @@ class Session:
         return top1_accuracy(self.decision_points())
 
 
+# --- One loop, in two halves ------------------------------------------------
+# A loop is offer → choose → record. The offer (read-only) and the record (the
+# step) are split so they can be driven two ways from one implementation: the
+# one-shot :func:`play_session` calls a policy *between* the halves, and the
+# resumable :class:`game.playsession.PlaySession` shows the offer to a UI, takes
+# a choice id, then records it — possibly across a save/reload boundary. Sharing
+# these two functions is what guarantees both runners step the loop identically.
+
+
+def offer_scene(
+    variant: Variant, mirror: Mirror, state: PlayerState, slot: Slot
+) -> tuple[Scene, Scene, str]:
+    """The Mirror's offer for one slot: ``(declared, offered, branch_key)``.
+
+    ``declared`` is the framing the world selected for this slot (the across-scene
+    adaptation), ``offered`` is that scene as the Mirror presents it (the in-scene
+    re-ordering), and ``branch_key`` names the framing revealed. This is the
+    read-only half of a loop — what the player is *about* to be offered, before
+    any choice is made — so an interactive caller can render it and a resumable
+    session can recompute it on demand. It does not touch ``state``.
+    """
+    declared, branch_key = variant.select_scene(slot, state)
+    offered = variant.order_choices(mirror, state, declared)
+    return declared, offered, branch_key
+
+
+def record_loop(
+    mirror: Mirror,
+    state: PlayerState,
+    declared: Scene,
+    offered: Scene,
+    branch_key: str,
+    choice_id: str,
+    *,
+    loop_index: int,
+    is_finale: bool,
+) -> LoopRecord:
+    """Step a chosen choice against an already-offered scene and record it.
+
+    The write half of a loop: given the offer (:func:`offer_scene`) and the
+    player's ``choice_id``, step the locked core loop, build the Mirror's
+    escalating voice line, and return the :class:`LoopRecord`. The new
+    accumulated state is ``record.result.state`` — the caller folds it forward.
+    Shared verbatim by :func:`play_session` and
+    :class:`game.playsession.PlaySession`.
+    """
+    model_locked_before = bool(state.announced)
+    result = mirror.step(state, offered, choice_id)
+    counts = result.state.tendency_counts
+    dominant, dominant_count = counts.most_common(1)[0]
+    predicted_hit = bool(result.predicted_actions) and result.predicted_actions[0] == choice_id
+    message = adapt_message(
+        dominant=dominant,
+        dominant_count=dominant_count,
+        total=result.state.turn_count,
+        just_noticed=result.reflection is not None,
+        model_locked=bool(result.state.announced) or model_locked_before,
+        predicted_hit=predicted_hit,
+        is_finale=is_finale,
+    )
+    return LoopRecord(
+        loop_index=loop_index,
+        declared=declared,
+        offered=offered,
+        branch_key=branch_key,
+        result=result,
+        system_message=message,
+    )
+
+
 def play_session(
     policy: Policy,
     *,
@@ -137,37 +207,22 @@ def play_session(
     # player state (pinned in test_variants/test_world), so nothing here can be
     # None or short-circuit the loop.
     for i, slot in enumerate(world.slots):
-        declared, branch_key = variant.select_scene(slot, state)
-        offered = variant.order_choices(mirror, state, declared)
-        model_locked_before = bool(state.announced)
+        declared, offered, branch_key = offer_scene(variant, mirror, state, slot)
         choice_id = policy(offered, state, i)
-        result = mirror.step(state, offered, choice_id)
-
-        counts = result.state.tendency_counts
-        dominant, dominant_count = counts.most_common(1)[0]
-        predicted_hit = bool(result.predicted_actions) and result.predicted_actions[0] == choice_id
-        message = adapt_message(
-            dominant=dominant,
-            dominant_count=dominant_count,
-            total=result.state.turn_count,
-            just_noticed=result.reflection is not None,
-            model_locked=bool(result.state.announced) or model_locked_before,
-            predicted_hit=predicted_hit,
-            is_finale=(i == world.length - 1),
-        )
-
-        record = LoopRecord(
+        record = record_loop(
+            mirror,
+            state,
+            declared,
+            offered,
+            branch_key,
+            choice_id,
             loop_index=i,
-            declared=declared,
-            offered=offered,
-            branch_key=branch_key,
-            result=result,
-            system_message=message,
+            is_finale=(i == world.length - 1),
         )
         records.append(record)
         if on_loop is not None:
             on_loop(record)
-        state = result.state
+        state = record.result.state
 
     if not (MIN_LOOPS <= len(records) <= MAX_LOOPS):
         raise ValueError(

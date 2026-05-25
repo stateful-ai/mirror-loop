@@ -252,3 +252,27 @@ DEFAULT_WORLD = World(
         EXIT,
     ),
 )
+
+
+# --- The world registry ------------------------------------------------------
+# A persisted session stores only its world's *name* (the spine itself is code,
+# not data). On reload it resolves the name back to the authored ``World`` here.
+# v0 ships exactly one world; :func:`get_world` refuses any other name so a
+# session recorded against a spine this build does not have fails loudly rather
+# than silently mis-restoring against the wrong world.
+WORLDS: dict[str, World] = {DEFAULT_WORLD.name: DEFAULT_WORLD}
+
+
+def get_world(name: str) -> World:
+    """Resolve a registered world by :attr:`World.name`.
+
+    Raises ``ValueError`` for an unknown name (the same fail-loud posture the
+    schema-version guards take, ``docs/SCHEMAS.md`` §5).
+    """
+    try:
+        return WORLDS[name]
+    except KeyError:
+        known = ", ".join(sorted(WORLDS)) or "(none registered)"
+        raise ValueError(
+            f"unknown world {name!r}; known worlds: {known}"
+        ) from None

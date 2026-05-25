@@ -47,6 +47,8 @@ The LLM is not directly responsible for everything in the game loop. It is part 
 
 The smallest runnable slice of this loop — one turn, the single adaptation type, and the visible "Mirror noticed…" reflection beat — is specified in [`docs/CORE_LOOP.md`](docs/CORE_LOOP.md) and operationalized in [`loop/`](loop/). Run the fully worked example with `python -m loop`.
 
+Those turns accumulate: a play session carries the player model and world position forward loop to loop, and survives a save/reload *within* the session so adaptations compound (a later loop re-orders or reveals content from earlier ones). How that works — persist the log, reduce the deltas — and why losing a session on quit is acceptable for v0 is documented in [`docs/PERSISTENCE.md`](docs/PERSISTENCE.md) and implemented in [`game/playsession.py`](game/playsession.py). See it with `python -m game.playsession`.
+
 ## Agent Architecture
 
 The game is orchestrated by several agent classes with different permissions and latency expectations.
