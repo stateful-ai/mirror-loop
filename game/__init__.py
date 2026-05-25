@@ -18,12 +18,16 @@ This package is the runnable game layer that sits on top of the locked core loop
 * :mod:`game.session` — the runner that plays a full 3–5-loop session,
 * :mod:`game.replay` — the deterministic, seeded replay of the baseline arm: a
   session runs end-to-end from a ``(seed, input log)`` pair and serializes to a
-  canonical state that reproduces byte-for-byte (the byte-identity gate).
+  canonical state that reproduces byte-for-byte (the byte-identity gate),
+* :mod:`game.instrumentation` — the seed-anchored replay log of the *adaptive*
+  run: every input, Mirror transition, and fired adaptation, with the Reflection
+  beat locatable from the log and a deterministic state hash pinned across runs.
 
 Play it with ``python -m game`` (interactive), ``python -m game --demo``
 (a scripted persona), or ``python -m game --variant fixed`` (a baseline arm).
-Replay the seeded baseline with ``python -m game.replay``. Nothing here makes a
-network call or loads a model.
+Replay the seeded baseline with ``python -m game.replay``, or trace and locate
+the adaptive run's events with ``python -m game.instrumentation``. Nothing here
+makes a network call or loads a model.
 """
 
 from .adapt import AdaptedSlot, AdaptedWorld, adapt, adapt_slot
