@@ -51,6 +51,8 @@ The smallest runnable slice of this loop — one turn, the single adaptation typ
 
 Those turns accumulate: a play session carries the player model and world position forward loop to loop, and survives a save/reload *within* the session so adaptations compound (a later loop re-orders or reveals content from earlier ones). How that works — persist the log, reduce the deltas — and why losing a session on quit is acceptable for v0 is documented in [`docs/PERSISTENCE.md`](docs/PERSISTENCE.md) and implemented in [`game/playsession.py`](game/playsession.py). See it with `python -m game.playsession`.
 
+With the adaptive game and a non-adaptive baseline both runnable through one seam, the question the prototype exists to answer can be put to a **blind A/B**: play a seeded population through each arm, score every session against the founder-locked acceptance metric, and apply a pre-registered decision rule for a PASS / FAIL / INCONCLUSIVE verdict. The protocol (arms, n, metric, effect threshold, kill-criterion, blinding) is pre-registered in [`docs/PLAYTEST_METHOD.md`](docs/PLAYTEST_METHOD.md), implemented in [`game/playtest.py`](game/playtest.py), and the scored canonical run is written up in [`docs/PLAYTEST_RESULTS.md`](docs/PLAYTEST_RESULTS.md). Run it with `python -m game.playtest`.
+
 ## Agent Architecture
 
 The game is orchestrated by several agent classes with different permissions and latency expectations.
