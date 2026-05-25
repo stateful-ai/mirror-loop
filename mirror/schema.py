@@ -21,6 +21,8 @@ and the tests run it, so the schema cannot silently rot back into mush.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -235,6 +237,53 @@ _SPECS: tuple[AttributeSpec, ...] = (
 
 #: The schema, keyed by attribute name. Import this to read the mirror's shape.
 MIRROR_SCHEMA: dict[str, AttributeSpec] = {spec.name: spec for spec in _SPECS}
+
+
+# --- Versioning. The schema is the contract a recorded event log reduces against.
+#
+# The Mirror is a *pure reduction* over an append-only event log (see
+# ``mirror/log.py``): the player-state is recomputed from the log, never stored
+# as authoritative. That only stays deterministic if the schema the log was
+# recorded under matches the schema reducing it. So the schema is versioned, and
+# a log carries the version + a structural fingerprint it was produced under.
+
+#: Bump on ANY structural change to the axes — a new/removed axis, a changed
+#: kind/dynamics/learning_rate/decay/neutral/halflife, or a renamed pole/mode.
+#: A recorded event log is stamped with this; replaying a log produced under a
+#: different version is refused rather than silently mis-reduced.
+SCHEMA_VERSION = 1
+
+
+def schema_fingerprint(schema: dict[str, AttributeSpec] | None = None) -> str:
+    """A stable hash of the schema's *structure*, independent of dict ordering.
+
+    Two processes whose axes are structurally identical produce the same
+    fingerprint; any change to an axis's shape changes it. The event log records
+    this alongside :data:`SCHEMA_VERSION`, so a reducer can catch a schema that
+    drifted *without* a version bump — the one way a "deterministic recompute"
+    could silently disagree with the log it claims to reproduce.
+
+    Pass an explicit ``schema`` to fingerprint a hypothetical one (used in tests);
+    defaults to the live :data:`MIRROR_SCHEMA`.
+    """
+    specs = (schema if schema is not None else MIRROR_SCHEMA).values()
+    payload = [
+        {
+            "name": s.name,
+            "kind": s.kind.value,
+            "dynamics": s.dynamics.value,
+            "poles": list(s.poles),
+            "modes": list(s.modes),
+            "neutral": s.neutral,
+            "learning_rate": s.learning_rate,
+            "decay_per_turn": s.decay_per_turn,
+            "evidence_halflife": s.evidence_halflife,
+        }
+        # Sort by name so the fingerprint depends on the axis set, not its order.
+        for s in sorted(specs, key=lambda spec: spec.name)
+    ]
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
 # --- Provenance: every seed §6.1 feature is accounted for. ---------------------

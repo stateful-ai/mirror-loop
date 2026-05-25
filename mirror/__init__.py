@@ -3,16 +3,33 @@
 Public API:
 
 - Schema:  ``MIRROR_SCHEMA``, ``AttributeSpec``, ``AttributeKind``, ``Dynamics``,
-  ``SEED_FEATURE_MAP``, ``coherence_report``, ``assert_coherent``.
+  ``SEED_FEATURE_MAP``, ``coherence_report``, ``assert_coherent``,
+  ``SCHEMA_VERSION``, ``schema_fingerprint``.
 - Runtime: ``MirrorState``, ``Choice``, ``Signal``, ``AttributeReading``.
+- Event log / reducer: ``EventLog``, ``MirrorEvent``, ``ChoiceObserved``,
+  ``TurnAdvanced``, ``reduce``, ``scan``, ``log_from_choices``.
 
-See ``docs/MIRROR_SCHEMA.md`` for the schema spec and the anti-mush review.
+The event log is the source of truth; the Mirror is a pure reduction over it.
+See ``docs/MIRROR_SCHEMA.md`` for the schema spec, the anti-mush review, and the
+reducer contract.
 """
 
 from __future__ import annotations
 
+from mirror.log import (
+    ChoiceObserved,
+    EventLog,
+    MirrorEvent,
+    TurnAdvanced,
+    event_from_dict,
+    event_to_dict,
+    log_from_choices,
+    reduce,
+    scan,
+)
 from mirror.schema import (
     MIRROR_SCHEMA,
+    SCHEMA_VERSION,
     SEED_FEATURE_MAP,
     AttributeKind,
     AttributeSpec,
@@ -20,6 +37,7 @@ from mirror.schema import (
     Dynamics,
     assert_coherent,
     coherence_report,
+    schema_fingerprint,
     value_range,
 )
 from mirror.state import (
@@ -31,6 +49,7 @@ from mirror.state import (
 
 __all__ = [
     "MIRROR_SCHEMA",
+    "SCHEMA_VERSION",
     "SEED_FEATURE_MAP",
     "AttributeKind",
     "AttributeSpec",
@@ -38,9 +57,19 @@ __all__ = [
     "Dynamics",
     "assert_coherent",
     "coherence_report",
+    "schema_fingerprint",
     "value_range",
     "AttributeReading",
     "Choice",
     "MirrorState",
     "Signal",
+    "EventLog",
+    "MirrorEvent",
+    "ChoiceObserved",
+    "TurnAdvanced",
+    "event_to_dict",
+    "event_from_dict",
+    "reduce",
+    "scan",
+    "log_from_choices",
 ]

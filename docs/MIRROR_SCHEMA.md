@@ -1,16 +1,18 @@
 # Mirror Loop — The "Mirror" Player-State Schema
 
 **Date:** 2026-05-24 · **Scope:** typed schema of inferred player attributes +
-per-choice update rules + anti-mush coherence review · **Status:** Defined.
+per-choice update rules + anti-mush coherence review + the event-log reducer ·
+**Status:** Defined.
 
 > The **mirror** is the system's model of the player — the reflection it builds
 > from in-game behavior and feeds back as creepy personalization. This document
 > defines that state: the inferred attributes, how each one moves per choice, and
 > the review that keeps it from collapsing into mush. The schema is implemented
-> in [`mirror/schema.py`](../mirror/schema.py) (the axes) and
+> in [`mirror/schema.py`](../mirror/schema.py) (the axes), and
 > [`mirror/state.py`](../mirror/state.py) (the per-choice updates); the
-> invariants below are enforced by `assert_coherent()` and the tests, not just
-> asserted in prose.
+> [`mirror/log.py`](../mirror/log.py) reducer recomputes the state from a
+> recorded event log (§6). The invariants below are enforced by
+> `assert_coherent()` and the tests, not just asserted in prose.
 
 ---
 
@@ -179,3 +181,49 @@ movable. That is the coherence the thesis needs.
   `predicted_actions` it produces are scored by the locked acceptance gate
   ([`acceptance/predictability.py`](../acceptance/predictability.py)). This file
   defines the state; predicting from it is a separate, downstream piece.
+
+---
+
+## 6. The mirror as a pure reducer over the event log
+
+The project's locked architecture is that the **append-only event log is the
+only source of truth**, and the mirror is a **pure reduction** over it: the
+player-state is *recomputed* from the log, never stored as authoritative derived
+state. [`mirror/log.py`](../mirror/log.py) is that reducer.
+
+**The events.** A log is a sequence of two typed, serializable facts — one per
+state transition in `state.py`:
+
+- `ChoiceObserved` — the player made a choice that emitted these `Signal`s, plus
+  optional provenance (`scene_id`, `act_id`) so a piece of evidence traces to its
+  origin (the grounding the "Mirror noticed…" callbacks need). It records the
+  *signals* (the input), never the resulting deltas — those are derived.
+- `TurnAdvanced` — a turn boundary passed, so every **state** axis decays one
+  step (`frustration → calm`) while **traits** are untouched. Modeling the turn
+  as its own event keeps decay explicit in the log rather than smuggled into a
+  choice, and lets a turn pass with no choice at all.
+
+**The fold.** `reduce(events)` starts from `MirrorState.new()` (everything
+unknown) and applies each event in order. It is pure with respect to its input —
+it never mutates the events and builds a fresh state — so `reduce(log) ==
+reduce(log)` always holds, and reducing equals driving `MirrorState` imperatively
+with the same choices and ticks. `scan(events)` yields the state *after each
+event* (independent copies), so the mirror can be reconstructed **as of any
+turn** — e.g. exactly what the prediction loop saw just before decision point *t*.
+A malformed signal raises rather than being absorbed: a corrupt log fails loudly
+instead of yielding a quietly-wrong recomputation.
+
+**Versioning.** The schema is the contract a log reduces against, so it is
+versioned. `SCHEMA_VERSION` bumps on any structural change to the axes;
+`schema_fingerprint()` is a stable hash of the axes' shapes. An `EventLog`
+records both, and `EventLog.reduce()` refuses a log whose version differs **or**
+whose fingerprint disagrees — the latter catches a schema that drifted *without*
+a version bump, the one way a "deterministic recompute" could silently disagree
+with the log it claims to reproduce. A log persisted without a fingerprint is
+rejected rather than reduced on faith.
+
+This is why the player-state never needs to be persisted: save the log, replay it,
+and you are guaranteed the same mirror. The unit tests in
+[`mirror/tests/test_log.py`](../mirror/tests/test_log.py) pin this down across
+empty, short, and full (multi-act) sessions, including JSON round-trip and the
+version/fingerprint guards.
