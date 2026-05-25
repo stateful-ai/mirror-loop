@@ -28,6 +28,7 @@ from acceptance.predictability import DecisionPoint, top1_accuracy
 from loop.core import Mirror, PlayerState, Scene, StepResult
 
 from .templates import SystemMessage, adapt_message, final_report
+from .variants import ADAPTIVE, Variant
 from .world import DEFAULT_WORLD, World, dominant_tendency
 
 # Session length must land in the 3–5-loop target. The default world is a fixed
@@ -71,6 +72,7 @@ class Session:
     records: tuple[LoopRecord, ...]
     final_state: PlayerState
     world_name: str
+    variant_name: str = ADAPTIVE.name
 
     @property
     def loop_count(self) -> int:
@@ -86,10 +88,15 @@ class Session:
         ]
 
     def session_log(self, session_id: str = "mirror-loop") -> dict:
-        """Render in the shape ``acceptance/predictability.py`` scores."""
+        """Render in the shape ``acceptance/predictability.py`` scores.
+
+        Includes the ``variant`` arm so A/B logs are self-labelling: the data is
+        tagged even though the player-facing transcript stays blind.
+        """
         return {
             "session_id": session_id,
             "act": self.world_name,
+            "variant": self.variant_name,
             "decision_points": [r.result.decision_point() for r in self.records],
         }
 
@@ -103,27 +110,35 @@ def play_session(
     *,
     world: World = DEFAULT_WORLD,
     mirror: Mirror | None = None,
+    variant: Variant = ADAPTIVE,
     on_loop: Callable[[LoopRecord], None] | None = None,
 ) -> Session:
     """Play ``world`` once under ``policy`` and return the completed session.
 
-    Drives the locked core loop for each slot: the world picks the scene framing,
-    the Mirror re-orders it (the one adaptation), the policy chooses, the Mirror
-    steps and speaks. ``on_loop`` (if given) is called with each completed
-    :class:`LoopRecord` as it happens, so an interactive player sees the Mirror's
-    reaction live between choices. Raises ``ValueError`` if the world produced a
-    session outside the 3–5-loop target.
+    Drives the locked core loop for each slot: the ``variant`` selects the scene
+    framing and orders its choices (the single adaptation seam — see
+    :mod:`game.variants`), the policy chooses, the Mirror steps and speaks. The
+    default :data:`~game.variants.ADAPTIVE` arm is the real game; the baseline
+    arms set that seam to the identity or a player-independent placebo for A/B
+    feel-testing, and are driven through this same path with no special-casing.
+
+    ``on_loop`` (if given) is called with each completed :class:`LoopRecord` as it
+    happens, so an interactive player sees the Mirror's reaction live between
+    choices. Raises ``ValueError`` if the world produced a session outside the
+    3–5-loop target.
     """
     mirror = mirror or Mirror()
     state = PlayerState()
     records: list[LoopRecord] = []
 
-    for i in range(world.length):
-        declared, branch_key = world.scene_for_loop(i, state)
-        if declared is None:
-            break
-
-        offered = mirror.adapt(state, declared)
+    # Walk the spine slot by slot. The session length is exactly the spine length
+    # (the bound below asserts it lands in 3–5) — there is no early exit: the seam
+    # is total, returning a real Scene for every slot regardless of variant or
+    # player state (pinned in test_variants/test_world), so nothing here can be
+    # None or short-circuit the loop.
+    for i, slot in enumerate(world.slots):
+        declared, branch_key = variant.select_scene(slot, state)
+        offered = variant.order_choices(mirror, state, declared)
         model_locked_before = bool(state.announced)
         choice_id = policy(offered, state, i)
         result = mirror.step(state, offered, choice_id)
@@ -160,7 +175,12 @@ def play_session(
             f"{MIN_LOOPS}-{MAX_LOOPS} loops per session"
         )
 
-    return Session(records=tuple(records), final_state=state, world_name=world.name)
+    return Session(
+        records=tuple(records),
+        final_state=state,
+        world_name=world.name,
+        variant_name=variant.name,
+    )
 
 
 # --- Policies ----------------------------------------------------------------

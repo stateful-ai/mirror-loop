@@ -140,10 +140,24 @@ def test_world_slot_keys_are_the_expected_spine():
     assert keys == ["intake", "records", "corridor", "confrontation", "exit"]
 
 
-def test_scene_for_loop_returns_none_past_the_end():
-    scene, key = DEFAULT_WORLD.scene_for_loop(DEFAULT_WORLD.length, PlayerState())
-    assert scene is None
-    assert key == "end"
+def test_every_slot_yields_a_real_scene_for_any_state():
+    # The session loop walks ``world.slots`` directly and trusts ``pick`` to be
+    # total — there is no end-of-spine ``None`` sentinel to guard against. Pin
+    # that contract: every slot returns a real Scene (never None) and a non-empty
+    # branch key under any player state, so the loop can never hand None to the
+    # core step.
+    states = (
+        PlayerState(),
+        _state_with("kindness", "kindness"),
+        _state_with("control", "control"),
+        _state_with("defiance", "defiance"),
+        _state_with("kindness", "control"),  # a top tie -> default framing
+    )
+    for state in states:
+        for slot in DEFAULT_WORLD.slots:
+            scene, key = slot.pick(state)
+            assert isinstance(scene, Scene)
+            assert key
 
 
 def test_tendency_priority_covers_all_tendencies():
