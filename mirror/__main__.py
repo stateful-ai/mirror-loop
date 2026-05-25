@@ -8,7 +8,13 @@ from __future__ import annotations
 
 import sys
 
-from mirror.schema import MIRROR_SCHEMA, AttributeKind, coherence_report
+from mirror.schema import (
+    MIRROR_SCHEMA,
+    SCHEMA_VERSION,
+    AttributeKind,
+    coherence_report,
+    schema_fingerprint,
+)
 
 
 def _shape(spec) -> str:
@@ -18,7 +24,11 @@ def _shape(spec) -> str:
 
 
 def main() -> int:
-    print(f"Mirror player-state schema — {len(MIRROR_SCHEMA)} inferred axes\n")
+    print(
+        f"Mirror player-state schema v{SCHEMA_VERSION} — "
+        f"{len(MIRROR_SCHEMA)} inferred axes"
+    )
+    print(f"fingerprint: {schema_fingerprint()}\n")
     for name, spec in MIRROR_SCHEMA.items():
         print(f"  {name}")
         print(f"    kind={spec.kind.value}  dynamics={spec.dynamics.value}  "

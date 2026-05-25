@@ -8,17 +8,20 @@ one of these fails.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 
 import pytest
 
 from mirror.schema import (
     MIRROR_SCHEMA,
+    SCHEMA_VERSION,
     SEED_FEATURE_MAP,
     AttributeKind,
     Dynamics,
     assert_coherent,
     coherence_report,
+    schema_fingerprint,
     value_range,
 )
 
@@ -166,3 +169,33 @@ def test_clamp_keeps_scalars_in_range():
 def test_axis_names_are_snake_case():
     for name in MIRROR_SCHEMA:
         assert re.fullmatch(r"[a-z][a-z_]*", name), name
+
+
+# --- versioning: the schema is the contract a recorded log reduces against -----
+
+
+def test_schema_version_is_a_positive_int():
+    assert isinstance(SCHEMA_VERSION, int)
+    assert SCHEMA_VERSION >= 1
+
+
+def test_fingerprint_is_a_stable_deterministic_hash():
+    fp = schema_fingerprint()
+    assert re.fullmatch(r"[0-9a-f]{64}", fp)  # sha256 hex
+    assert schema_fingerprint() == fp  # deterministic across calls
+
+
+def test_fingerprint_ignores_axis_ordering():
+    # The fingerprint depends on the *set* of axes, not their dict order — so it
+    # can't spuriously change when axes are merely reordered.
+    reordered = dict(reversed(list(MIRROR_SCHEMA.items())))
+    assert schema_fingerprint(reordered) == schema_fingerprint()
+
+
+def test_fingerprint_changes_when_an_axis_changes_shape():
+    # Any structural edit (here: a different learning_rate) must move the
+    # fingerprint, which is what forces a deliberate SCHEMA_VERSION bump.
+    tweaked = dict(MIRROR_SCHEMA)
+    spec = tweaked["curiosity"]
+    tweaked["curiosity"] = dataclasses.replace(spec, learning_rate=spec.learning_rate + 0.01)
+    assert schema_fingerprint(tweaked) != schema_fingerprint()
