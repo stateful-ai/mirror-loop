@@ -10,6 +10,8 @@ This package is the runnable game layer that sits on top of the locked core loop
   reduction over the event log,
 * :mod:`game.adaptation` — the versioned record of one content decision, with the
   trigger Mirror snapshot and source event-seq that make it auditable,
+* :mod:`game.adapt` — the templated, toggleable adaptation layer that presents a
+  world under a player-model read and emits those records, invariant-checked,
 * :mod:`game.templates` — the Mirror's templated, escalating system voice,
 * :mod:`game.variants` — the single adaptation seam, so the same engine plays the
   adaptive game or a non-adaptive baseline for A/B feel-testing,
@@ -24,6 +26,7 @@ Replay the seeded baseline with ``python -m game.replay``. Nothing here makes a
 network call or loads a model.
 """
 
+from .adapt import AdaptedSlot, AdaptedWorld, adapt, adapt_slot
 from .adaptation import (
     ADAPTATION_SCHEMA_VERSION,
     Adaptation,
@@ -61,6 +64,8 @@ __all__ = [
     "AdaptationKind",
     "AdaptationLog",
     "AdaptationProvenance",
+    "AdaptedSlot",
+    "AdaptedWorld",
     "DEFAULT_WORLD",
     "FIXED",
     "LoopRecord",
@@ -73,6 +78,8 @@ __all__ = [
     "WORLDSTATE_SCHEMA_VERSION",
     "World",
     "WorldState",
+    "adapt",
+    "adapt_slot",
     "build_variant",
     "live_feedback",
     "persona_policy",
