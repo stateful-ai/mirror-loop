@@ -18,6 +18,7 @@ from .core import (
     StepResult,
     Turn,
 )
+from .session import SCHEMA_VERSION, PlayedLoop, Session
 
 __all__ = [
     "NOTICE_THRESHOLD",
@@ -28,4 +29,7 @@ __all__ = [
     "Scene",
     "StepResult",
     "Turn",
+    "SCHEMA_VERSION",
+    "PlayedLoop",
+    "Session",
 ]
