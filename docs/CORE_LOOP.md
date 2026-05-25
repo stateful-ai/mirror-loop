@@ -92,6 +92,11 @@ scores against the player's `actual_action` (§5). If even this can't beat the
 (THESIS §1). Richer adaptations (tone mirroring, choice contamination, branch
 generation) are deferred; they extend this loop, they don't replace it.
 
+The full decision record — this type's two surfaces (the in-scene re-ordering
+here plus the across-scene framing selection in [`game/world.py`](../game/world.py)),
+the single axis it reads, three worked example adaptations, and the explicit
+out-of-scope list — lives in [`docs/ADAPTATION.md`](./ADAPTATION.md).
+
 ---
 
 ## 3. The Reflection / legibility beat
