@@ -6,6 +6,10 @@ This package is the runnable game layer that sits on top of the locked core loop
 
 * :mod:`game.world` — the hand-authored, branching lab the Mirror reveals from
   the player model,
+* :mod:`game.worldstate` — the player's position in that world, as a pure
+  reduction over the event log,
+* :mod:`game.adaptation` — the versioned record of one content decision, with the
+  trigger Mirror snapshot and source event-seq that make it auditable,
 * :mod:`game.templates` — the Mirror's templated, escalating system voice,
 * :mod:`game.variants` — the single adaptation seam, so the same engine plays the
   adaptive game or a non-adaptive baseline for A/B feel-testing,
@@ -16,6 +20,14 @@ Play it with ``python -m game`` (interactive), ``python -m game --demo``
 Nothing here makes a network call or loads a model.
 """
 
+from .adaptation import (
+    ADAPTATION_SCHEMA_VERSION,
+    Adaptation,
+    AdaptationKind,
+    AdaptationLog,
+    AdaptationProvenance,
+    MirrorSnapshot,
+)
 from .session import (
     PERSONAS,
     LoopRecord,
@@ -36,17 +48,27 @@ from .variants import (
     random_variant,
 )
 from .world import DEFAULT_WORLD, World
+from .worldstate import WORLDSTATE_SCHEMA_VERSION, VisitedSlot, WorldState
 
 __all__ = [
+    "ADAPTATION_SCHEMA_VERSION",
     "ADAPTIVE",
+    "Adaptation",
+    "AdaptationKind",
+    "AdaptationLog",
+    "AdaptationProvenance",
     "DEFAULT_WORLD",
     "FIXED",
     "LoopRecord",
+    "MirrorSnapshot",
     "PERSONAS",
     "Session",
     "VARIANT_NAMES",
     "Variant",
+    "VisitedSlot",
+    "WORLDSTATE_SCHEMA_VERSION",
     "World",
+    "WorldState",
     "build_variant",
     "live_feedback",
     "persona_policy",
