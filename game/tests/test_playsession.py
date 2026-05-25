@@ -360,11 +360,30 @@ def test_saved_form_stores_only_the_authoritative_log():
         "world",
         "variant",
         "seed",
+        "notice_threshold",
         "input_log",
     }
     assert data["input_log"] == list(KIND_LOG[:SAVE_AFTER])
     assert data["world"] == DEFAULT_WORLD.name
     assert data["variant"] == "adaptive"
+
+
+def test_custom_mirror_threshold_survives_reload():
+    """notice_threshold is a config input, not log-derivable, so it must persist:
+    a reload replays under the same engine the session was first played under."""
+    session = PlaySession(session_id="tuned", mirror=Mirror(notice_threshold=99))
+    _play(session, KIND_LOG[:SAVE_AFTER])
+    restored = PlaySession.from_dict(session.to_dict())
+    assert restored.mirror.notice_threshold == 99
+
+
+def test_legacy_save_without_threshold_loads_at_default():
+    """Saves written before notice_threshold was stored still load, falling back
+    to the default Mirror configuration."""
+    data = PlaySession(session_id="legacy").to_dict()
+    del data["notice_threshold"]
+    restored = PlaySession.from_dict(data)
+    assert restored.mirror.notice_threshold == Mirror().notice_threshold
 
 
 # --- fail-loud guards ----------------------------------------------------------

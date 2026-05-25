@@ -205,11 +205,13 @@ class PlaySession:
     def to_dict(self) -> dict:
         """A JSON-serializable snapshot: the authoritative log, nothing derived.
 
-        Stores the run configuration (world name, variant, seed) and the input
-        log. The Mirror model, the ``announced`` set, the world position, and
-        every adaptation shown are *not* stored — they are recomputed on reload by
-        replaying the log, so derived state is never the persisted authority
-        (``docs/SCHEMAS.md`` §0).
+        Stores the run configuration (world name, variant, seed, and the Mirror's
+        tunable ``notice_threshold``) and the input log. The Mirror *model*, the
+        ``announced`` set, the world position, and every adaptation shown are *not*
+        stored — they are recomputed on reload by replaying the log, so derived
+        state is never the persisted authority (``docs/SCHEMAS.md`` §0). The
+        threshold is a configuration input, not derivable from the log, so it is
+        kept so a reload replays under the same engine it was first played under.
         """
         return {
             "schema_version": SCHEMA_VERSION,
@@ -217,6 +219,7 @@ class PlaySession:
             "world": self.world.name,
             "variant": self.variant.name,
             "seed": self._seed,
+            "notice_threshold": self.mirror.notice_threshold,
             "input_log": list(self.input_log),
         }
 
@@ -245,7 +248,16 @@ class PlaySession:
                 f"{world.name!r} was supplied"
             )
         variant = build_variant(data["variant"], seed=data.get("seed", 0))
-        session = cls(world=world, variant=variant, session_id=data["session_id"])
+        # The Mirror's notice_threshold is a config input (not log-derivable), so
+        # restore it when present; older saves without it fall back to the default.
+        mirror = (
+            Mirror(notice_threshold=data["notice_threshold"])
+            if "notice_threshold" in data
+            else None
+        )
+        session = cls(
+            world=world, variant=variant, session_id=data["session_id"], mirror=mirror
+        )
         for choice_id in data["input_log"]:
             session.play(choice_id)  # replay: reduce mirror + world from the log
         return session
