@@ -45,6 +45,8 @@ Player acts
 
 The LLM is not directly responsible for everything in the game loop. It is part of a content supply chain.
 
+The smallest runnable slice of this loop — one turn, the single adaptation type, and the visible "Mirror noticed…" reflection beat — is specified in [`docs/CORE_LOOP.md`](docs/CORE_LOOP.md) and operationalized in [`loop/`](loop/). Run the fully worked example with `python -m loop`.
+
 ## Agent Architecture
 
 The game is orchestrated by several agent classes with different permissions and latency expectations.

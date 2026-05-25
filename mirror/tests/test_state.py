@@ -271,3 +271,37 @@ def test_a_short_session_produces_a_differentiated_profile():
         if s.kind is not AttributeKind.DISTRIBUTION
     ]
     assert max(scalar_values) - min(scalar_values) > 0.5
+
+
+def test_apply_choice_is_atomic_on_invalid_signal():
+    """A malformed signal anywhere in a choice rejects the whole choice without
+    leaving the mirror half-updated (P1)."""
+    state = MirrorState.new()
+    before = state.readings["curiosity"].value
+    with pytest.raises(KeyError):
+        state.apply_choice(
+            Choice("mixed", signals=(
+                Signal.toward("curiosity", 1.0),       # valid…
+                Signal.toward("not_a_real_axis", 1.0),  # …then invalid -> reject all
+            ))
+        )
+    assert state.readings["curiosity"].value == before
+    assert state.readings["curiosity"].evidence_count == 0.0
+
+
+def test_repeated_axis_signals_accumulate():
+    """Multiple signals on the same axis in one choice compound, not overwrite (P2)."""
+    state = MirrorState.new()
+    deltas = state.apply_choice(
+        Choice("strong", signals=(
+            Signal.toward("curiosity", 1.0),
+            Signal.toward("curiosity", 1.0),
+        ))
+    )
+    assert state.readings["curiosity"].evidence_count == pytest.approx(2.0)
+    single = MirrorState.new()
+    d1 = single.apply_choice(
+        Choice("one", signals=(Signal.toward("curiosity", 1.0),))
+    )
+    # The returned delta is the sum of both signals, larger than a single one.
+    assert deltas["curiosity"] > d1["curiosity"]

@@ -119,6 +119,13 @@ class MirrorState:
         distribution the change in the spent mode's share) — the same shape the
         event log records as ``player_model_updates``.
         """
+        # Atomic: apply to a working copy and commit only if *every* signal is
+        # valid, so a malformed signal late in the choice can't leave the mirror
+        # half-updated. Deltas accumulate per axis when a choice carries several
+        # signals for the same attribute (they compound, not overwrite).
+        import copy
+
+        working = copy.deepcopy(self.readings)
         deltas: dict[str, float] = {}
         for signal in choice.signals:
             spec = MIRROR_SCHEMA.get(signal.attribute)
@@ -127,11 +134,15 @@ class MirrorState:
                 raise KeyError(f"signal targets unknown attribute {signal.attribute!r}")
             if not (0.0 < signal.weight <= 1.0):
                 raise ValueError(f"signal weight {signal.weight} not in (0, 1]")
-            deltas[signal.attribute] = self._apply_signal(spec, signal)
+            delta = self._apply_signal(working, spec, signal)
+            deltas[signal.attribute] = deltas.get(signal.attribute, 0.0) + delta
+        self.readings = working
         return deltas
 
-    def _apply_signal(self, spec: AttributeSpec, signal: Signal) -> float:
-        reading = self.readings[spec.name]
+    def _apply_signal(
+        self, readings: dict[str, AttributeReading], spec: AttributeSpec, signal: Signal
+    ) -> float:
+        reading = readings[spec.name]
         if spec.kind is AttributeKind.DISTRIBUTION:
             delta = self._update_distribution(spec, reading, signal)
         else:
