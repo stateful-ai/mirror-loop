@@ -14,7 +14,7 @@ dependencies = []
 dev = ["pytest>=7.0"]
 
 [tool.setuptools]
-packages = ["acceptance", "loop"]
+packages = ["acceptance", "mirror", "loop"]
 
 [tool.pytest.ini_options]
-testpaths = ["acceptance/tests", "loop/tests"]
+testpaths = ["acceptance/tests", "mirror/tests", "loop/tests"]
