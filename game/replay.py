@@ -246,7 +246,13 @@ class RunResult:
         raw: list[dict] = [
             {
                 "type": "run",
-                "schema_version": JSONL_SPEC_VERSION,
+                # Stamped as `jsonl_spec_version` (not `schema_version`) so the
+                # wire byte distinguishes this from the JSON snapshot's
+                # `schema_version`: two independently versioned serializations
+                # of the same run must not name-collide on the wire, or a
+                # consumer reading the JSONL cannot tell which constant a
+                # mismatched version refers to.
+                "jsonl_spec_version": JSONL_SPEC_VERSION,
                 "seed": self.seed,
                 "variant": self.variant,
                 "world": self.world_name,

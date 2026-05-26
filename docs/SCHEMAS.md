@@ -102,12 +102,17 @@ beat is allowed to render from.
 Each schema carries an independent version stamped into its serialized form, and a
 load **refuses** an unknown version rather than silently mis-restoring:
 
-| Schema | Constant | Stamped on |
+| Schema | Constant | Stamped on (wire field) |
 |--------|----------|-----------|
-| Event / MirrorState | `mirror.schema.SCHEMA_VERSION` (+ `schema_fingerprint()`) | `EventLog` |
-| WorldState | `game.worldstate.WORLDSTATE_SCHEMA_VERSION` | `WorldState.to_dict` |
-| Adaptation | `game.adaptation.ADAPTATION_SCHEMA_VERSION` | `AdaptationLog.to_dict` |
-| Canonical JSONL stream | `game.replay.JSONL_SPEC_VERSION` | the `run` header in `RunResult.to_jsonl` |
+| Event / MirrorState | `mirror.schema.SCHEMA_VERSION` (+ `schema_fingerprint()`) | `EventLog` (`schema_version`) |
+| WorldState | `game.worldstate.WORLDSTATE_SCHEMA_VERSION` | `WorldState.to_dict` (`schema_version`) |
+| Adaptation | `game.adaptation.ADAPTATION_SCHEMA_VERSION` | `AdaptationLog.to_dict` (`schema_version`) |
+| Canonical JSONL stream | `game.replay.JSONL_SPEC_VERSION` | the `run` header in `RunResult.to_jsonl` (`jsonl_spec_version`) |
+
+The JSONL stream uses a distinct wire-field name (`jsonl_spec_version`, not
+`schema_version`) so the bytes a consumer reads disambiguate which constant a
+mismatched version refers to — the JSON snapshot also carries a `schema_version`
+on the wire, and the two are independently versioned (see §6).
 
 Bump a version on **any incompatible change** to that schema's serialized shape (a
 new/removed/renamed field, a changed enum value, a changed snapshot shape). The

@@ -415,7 +415,7 @@ def test_m1_jsonl_fixture_is_well_formed_and_self_describing():
     head_body = {k: v for k, v in head.items() if k not in {"event_seq", "event_id"}}
     assert head_body == {
         "type": "run",
-        "schema_version": JSONL_SPEC_VERSION,
+        "jsonl_spec_version": JSONL_SPEC_VERSION,
         "seed": DEFAULT_SEED,
         "variant": BASELINE_VARIANT,
         "world": DEFAULT_WORLD.name,
@@ -582,9 +582,10 @@ def test_canonical_dumps_finite_floats_use_shortest_round_trip():
 
 def test_jsonl_run_header_uses_the_jsonl_spec_version_not_the_snapshot_version():
     # The JSONL spec and the JSON snapshot are two independent
-    # serializations; the run record's ``schema_version`` stamps the JSONL
-    # spec, not the snapshot's `SCHEMA_VERSION`. Future contributors who bump
-    # one but not the other should not see this test fail — that's the
-    # point. It does fail if someone re-couples them in `jsonl_records`.
+    # serializations. The wire field is `jsonl_spec_version` (not
+    # `schema_version`) precisely so the bytes a consumer reads disambiguate
+    # which constant they refer to — otherwise the JSON snapshot's
+    # `schema_version` and the JSONL spec's would name-collide on the wire.
     head = canonical_run().jsonl_records()[0]
-    assert head["schema_version"] == JSONL_SPEC_VERSION
+    assert head["jsonl_spec_version"] == JSONL_SPEC_VERSION
+    assert "schema_version" not in head
