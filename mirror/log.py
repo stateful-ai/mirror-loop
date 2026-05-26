@@ -30,7 +30,6 @@ silently producing a different "recomputation".
 
 from __future__ import annotations
 
-import copy
 import json
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
@@ -162,39 +161,12 @@ def event_from_dict(data: dict) -> MirrorEvent:
 
 
 # --- The reducer: the pure fold from log to state -----------------------------
+# The canonical implementation lives in ``mirror/reducer.py`` so the pure fold
+# can stay structurally isolated from the (future) impure ``mirror/loop.py`` —
+# the architectural rule locked in by ``docs/mirror_loop_m1_founder_brief.md``.
+# This module re-exports it so existing callers keep working.
 
-
-def reduce(events: Iterable[MirrorEvent]) -> MirrorState:
-    """Fold an event log into a player-state, deterministically.
-
-    Starts from a blank mirror (every axis unknown, confidence 0) and applies
-    each event in order. Pure with respect to its input: it never mutates the
-    events and builds a fresh :class:`MirrorState`, so ``reduce(log) ==
-    reduce(log)`` always holds. A malformed signal raises (exactly as
-    :meth:`MirrorState.apply_choice` does) rather than being silently absorbed —
-    a corrupt log fails loudly instead of yielding a quietly-wrong recomputation.
-
-    This bare function does not check the schema version; reduce through
-    :meth:`EventLog.reduce` to get the version/fingerprint guard.
-    """
-    state = MirrorState.new()
-    for event in events:
-        event.apply_to(state)
-    return state
-
-
-def scan(events: Iterable[MirrorEvent]) -> Iterator[MirrorState]:
-    """Yield the player-state after each event (the running reductions).
-
-    The initial blank state is not yielded; the first item is the state after the
-    first event, the last equals :func:`reduce` of the whole log. Each yielded
-    state is an independent copy, so holding on to an earlier one is safe — it is
-    a true snapshot of the Mirror as of that turn, not a live reference.
-    """
-    state = MirrorState.new()
-    for event in events:
-        event.apply_to(state)
-        yield copy.deepcopy(state)
+from mirror.reducer import reduce, scan  # noqa: E402,F401
 
 
 # --- The log: an ordered, version-stamped container ---------------------------
