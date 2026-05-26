@@ -1,0 +1,50 @@
+# The structural baseline≡adaptive parity gate — the second of the two M1
+# branch-protected CI checks.
+#
+# Locked by docs/mirror_loop_m1_synthesis.md ("Gates (both CI-blocking): ...
+# structural baseline≡adaptive parity") and docs/adr/0001-m1-locks.md. The
+# job id ('baseline-adaptive-parity') is the literal status-check name a
+# repo admin pastes into branch protection's "Require status checks to pass"
+# list — see docs/CI.md.
+#
+# Test selection lives in ci/gates.py (BASELINE_ADAPTIVE_PARITY); the runner
+# ('python -m ci.baseline_adaptive_parity') is what the dry-run harness
+# drives when verifying the gate flips red under a deliberate parity break.
+name: baseline-adaptive-parity
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: baseline-adaptive-parity-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  baseline-adaptive-parity:
+    name: baseline-adaptive-parity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install the project (editable, with dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+
+      - name: Run the baseline≡adaptive parity gate
+        # Single source of truth: ci/gates.py BASELINE_ADAPTIVE_PARITY.
+        # Runs the same-shell variant tests plus the playtest parity
+        # assertions; a single failed assertion fails the required check on
+        # this commit.
+        run: python -m ci.baseline_adaptive_parity
