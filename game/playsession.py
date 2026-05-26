@@ -200,7 +200,7 @@ class PlaySession:
         is stored so the placebo arm round-trips exactly, keeping the saved form a
         complete description of the run.
         """
-        return int(getattr(self.variant, "seed", 0))
+        return self.variant.seed
 
     def to_dict(self) -> dict:
         """A JSON-serializable snapshot: the authoritative log, nothing derived.

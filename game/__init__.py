@@ -13,8 +13,10 @@ This package is the runnable game layer that sits on top of the locked core loop
 * :mod:`game.adapt` — the templated, toggleable adaptation layer that presents a
   world under a player-model read and emits those records, invariant-checked,
 * :mod:`game.templates` — the Mirror's templated, escalating system voice,
-* :mod:`game.variants` — the single adaptation seam, so the same engine plays the
-  adaptive game or a non-adaptive baseline for A/B feel-testing,
+* :mod:`game.variants` — the single adaptation seam (one shared pipeline plus an
+  injected :class:`~game.variants.AdaptationLayer`), so the same engine plays the
+  adaptive game or a non-adaptive baseline — ``baseline == adaptive minus the
+  layer`` — for A/B feel-testing,
 * :mod:`game.session` — the runner that plays a full 3–5-loop session,
 * :mod:`game.replay` — the deterministic, seeded replay of the baseline arm: a
   session runs end-to-end from a ``(seed, input log)`` pair and serializes to a
@@ -58,7 +60,10 @@ from .session import (
 from .variants import (
     ADAPTIVE,
     FIXED,
+    NO_LAYER,
+    TENDENCY_MIRRORING,
     VARIANT_NAMES,
+    AdaptationLayer,
     Variant,
     build_variant,
     random_variant,
@@ -79,9 +84,12 @@ __all__ = [
     "FIXED",
     "LoopRecord",
     "MirrorSnapshot",
+    "NO_LAYER",
     "PERSONAS",
     "Session",
+    "TENDENCY_MIRRORING",
     "VARIANT_NAMES",
+    "AdaptationLayer",
     "Variant",
     "VisitedSlot",
     "WORLDSTATE_SCHEMA_VERSION",
