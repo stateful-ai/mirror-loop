@@ -173,3 +173,27 @@ the whole-file level:
 The `JSONL_SPEC_VERSION` constant is versioned independently of
 `SCHEMA_VERSION` (the JSON-snapshot version) because the two serializations
 serve different consumers — bumping one does not force the other.
+
+### Provenance — how this spec was authorized
+
+The three mechanisms above (deterministic `event_id`s, the `event_seq`
+logical clock, and pinned `sort_keys`/`allow_nan=False`/shortest-repr float
+serialization in `canonical_dumps`) were originally split across two PLAN
+tickets that were rejected as out-of-scope before the byte-identity gate was
+locked. The chief-of-staff build brief
+(`stream_20260524T184854Z_469b5e_build_20260525T182811Z`) surfaced this as
+**Decision 1: "Resolve the determinism conflict — either un-reject those
+PLAN tickets by folding them into the JSONL spec, or drop the byte-identity
+gate from the DoD."** The recommended resolution was *fold in*, since the
+gate is the milestone's whole point
+([ADR-0001 §"Context"](./adr/0001-m1-locks.md) — byte-identity replay is one
+of the two CI gates the M1 slice exists to run).
+
+Founder sign-off for that resolution is recorded as the approval of task
+`task_20260525T183310Z_08e282` ("Resolve byte-identity vs. PLAN-rejected
+determinism tickets …", `owner: founder`, approved
+`2026-05-25T21:49:15Z`). The three properties enumerated above are the
+acceptance criteria from that task verbatim, and each has a pinned test in
+`game/tests/test_replay.py` under the "JSONL spec" section — so the
+authorization, the spec, and the gate that enforces it are linked end-to-end
+rather than relying on the author's recollection.
