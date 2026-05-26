@@ -1,0 +1,11 @@
+# Pinned dev tooling for mirror-loop. Runtime is stdlib-only (the [project]
+# table declares dependencies = []), so this lockfile only pins the dev tools
+# named in [project.optional-dependencies].dev.
+#
+# Install with:  pip install -r requirements-dev.lock
+# Regenerate by  bumping the floors in pyproject.toml and updating the pins
+# here to match the resolved set (no resolver runs in CI; this file is the
+# single source of truth for the dev environment).
+
+pytest==8.3.3
+ruff==0.6.9

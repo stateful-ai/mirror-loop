@@ -11,10 +11,35 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+# Versions here are floors; exact pins for reproducible installs live in
+# requirements-dev.lock (regenerated together with this list).
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.6.0",
+]
 
 [tool.setuptools]
 packages = ["acceptance", "mirror", "loop", "game", "guardrails", "runtime", "llmbench", "telemetry"]
 
 [tool.pytest.ini_options]
 testpaths = ["acceptance/tests", "mirror/tests", "loop/tests", "game/tests", "guardrails/tests", "runtime/tests", "llmbench/tests", "telemetry/tests"]
+
+[tool.ruff]
+# Match the language floor in [project].requires-python so the lint surface
+# tracks the runtime contract (no false positives for 3.10+ syntax).
+target-version = "py310"
+line-length = 100
+extend-exclude = ["build", "dist", "*.egg-info"]
+
+[tool.ruff.lint]
+# Keep the rule set tight and defensible: pycodestyle errors (E), pyflakes (F),
+# bugbear (B), import-sort (I), pyupgrade (UP), and unused-arg (ARG). The point
+# is to prevent obvious bugs and keep imports tidy without churning the diff.
+select = ["E", "F", "B", "I", "UP", "ARG"]
+ignore = [
+    "E501",  # line length handled by `line-length` above; ignore E501 noise on long URLs/docstrings.
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests intentionally use unused fixtures (capsys, monkeypatch) as positional args.
+"**/tests/**" = ["ARG001", "ARG002"]
