@@ -28,6 +28,7 @@ from game.flavor import (
     select_directive,
 )
 from game.scenes import load_scene
+from mirror.schema import MIRROR_SCHEMA
 from mirror.state import Choice, MirrorState, Signal
 
 
@@ -208,6 +209,35 @@ def test_probing_variant_is_pinned():
     assert "fourth shape" in body
     assert "bezel" in body
     assert body != pack.canonical
+
+
+# --- select_directive: contract is wired to the real schema ------------------
+
+
+def test_axes_read_by_selector_exist_in_mirror_schema():
+    """Guard against silent BASELINE-forever: the axes ``select_directive``
+
+    reads must actually exist in :data:`MIRROR_SCHEMA`. If an axis is
+    renamed in the schema and not updated here, ``state.readings.get(...)``
+    would return ``None`` for every call and the selector would silently
+    pick BASELINE in every game state — a naive baseline test would still
+    pass while the adaptation was effectively dead. Pin the names against
+    the schema so that failure mode is loud, not silent.
+    """
+    assert "risk_tolerance" in MIRROR_SCHEMA
+    assert "boundary_testing" in MIRROR_SCHEMA
+
+
+def test_selector_axes_appear_in_a_fresh_mirror_state():
+    # Belt-and-braces: a freshly-constructed MirrorState must expose the
+    # axis names the selector probes, with the .value / .confidence shape
+    # the selector reads.
+    state = MirrorState.new()
+    for axis in ("risk_tolerance", "boundary_testing"):
+        reading = state.readings.get(axis)
+        assert reading is not None
+        assert hasattr(reading, "value")
+        assert hasattr(reading, "confidence")
 
 
 # --- select_directive: null/baseline -----------------------------------------

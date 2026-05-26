@@ -1,15 +1,18 @@
 """Templated flavor-text pack for the M1 adaptation beat.
 
-The M1 founder brief (``docs/mirror_loop_m1_founder_brief.md`` §M1 scope,
-line 24: *"Adaptation: one templated flavor swap at Act 1 Beat 2."*) names
-**Act 1 Beat 2** — ``act1_02_questionnaire_genre`` — as the adaptation
-target. The synthesis (``docs/mirror_loop_m1_synthesis.md`` line 29) still
-lists the beat assignment as Decision #1 (the Engineering Lead recommends
-Beat 2, the Infra Architect recommends the Act 2 opening); the pack here
-ships against the founder-brief target but does not foreclose that
-decision — :data:`M1_ADAPTATION_BEAT_SLOT` is the single line to change if
-Decision #1 lands elsewhere, and the slot key is the only coupling to
-this beat.
+The M1 founder brief (``docs/mirror_loop_m1_founder_brief.md`` "Locked"
+section, line 24: *"Adaptation: one templated flavor swap at Act 1 Beat
+2."*) **locks** Act 1 Beat 2 as the adaptation target. The founder brief
+is dated 2026-05-25 08:31 and supersedes the earlier synthesis
+(``docs/mirror_loop_m1_synthesis.md`` dated 2026-05-25 00:21), which
+still lists the beat as open Decision #1 only because the founder brief
+post-dates it. The slot key ``act1_02_questionnaire_genre`` is the
+``slot_id`` the Act 1 scene graph assigns to Beat 2 (see
+``game/scenes/data/act1/act1_02_questionnaire_genre.scene``); picking
+the slot ID from the scene graph for the locked beat is mechanical, not
+a re-litigation of the beat choice. Should the founder brief ever change
+the locked beat, :data:`M1_ADAPTATION_BEAT_SLOT` is the single line to
+update — the slot key is the only coupling to this beat.
 
 This module is the **content primitive** that swap consumes:
 
@@ -60,11 +63,12 @@ from typing import Mapping
 
 from mirror.state import MirrorState
 
-#: The Act 1 beat the M1 adaptation runs against. Defaults to the
-#: founder-brief target (``docs/mirror_loop_m1_founder_brief.md`` line 24);
-#: synthesis Decision #1 (``docs/mirror_loop_m1_synthesis.md`` line 29) is
-#: not yet closed, so this constant is the single line to update if that
-#: decision lands on a different beat (e.g. the Act 2 opening).
+#: The Act 1 beat the M1 adaptation runs against. Pinned to the founder-brief
+#: lock (``docs/mirror_loop_m1_founder_brief.md`` line 24, "Locked" section).
+#: The earlier synthesis (``docs/mirror_loop_m1_synthesis.md`` line 29) still
+#: prints Decision #1 as open only because the founder brief post-dates it;
+#: the brief is the source of truth. If the brief ever re-opens the lock,
+#: this constant is the single line to update.
 M1_ADAPTATION_BEAT_SLOT = "act1_02_questionnaire_genre"
 
 #: Confidence floor below which a MirrorState axis is treated as *unknown* for
@@ -217,6 +221,17 @@ def select_directive(
 
     The result is a pure function of ``(state, seed, confidence_floor)`` —
     no I/O, no clock, no global RNG.
+
+    **Seed-composition contract for callers.** This function does not
+    re-hash ``seed`` against ``state``: passing the *same* ``seed`` on
+    every call will resolve every tie the same way regardless of game
+    state. That is intentional — tie resolution is a property of the
+    caller's reproducibility regime, not of this layer. Callers that want
+    ties to vary across beats should compose the run seed with a stable
+    beat identifier (e.g. ``seed = hash((run_seed, slot_key))``) before
+    calling. Callers that want byte-identical replays (the M1
+    replay-byte-identity gate, ``docs/mirror_loop_m1_founder_brief.md``
+    line 27) should pass the same composed seed on every replay.
     """
     scores: list[tuple[float, AdaptationDirective]] = []
 
