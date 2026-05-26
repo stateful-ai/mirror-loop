@@ -5,6 +5,10 @@ the adaptive-vs-baseline A/B playtest — arms, sample size, metric, effect
 threshold, kill-criterion, decision rule, blinding, and the simulated-player
 population that stands in for human playtesters until they are in the loop.
 **Bounded by:** the founder-locked metric in [`docs/THESIS.md`](./THESIS.md).
+**Signed pre-registration envelope:**
+[`docs/AB_PREREGISTRATION.md`](./AB_PREREGISTRATION.md) — the short, signed
+gate that fixes the four pre-registered items (metric, n, effect threshold,
+falsifying result) before any future playtest.
 **Implemented by:** [`game/playtest.py`](../game/playtest.py)
 (`python -m game.playtest`).
 **Verified by:** [`game/tests/test_playtest.py`](../game/tests/test_playtest.py).
