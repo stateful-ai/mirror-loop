@@ -56,6 +56,38 @@
         "c_read",
         "c_breach"
       ],
+      "provenance": {
+        "adaptations": [
+          {
+            "kind": "branch_selection",
+            "ordering": [],
+            "provenance": {
+              "source_event_seq": 1,
+              "trigger_snapshot": {
+                "dominant": "kindness",
+                "tendency_counts": [
+                  [
+                    "kindness",
+                    1
+                  ]
+                ],
+                "turn_count": 1
+              }
+            },
+            "revealed": "kindness",
+            "slot_key": "records"
+          }
+        ],
+        "baseline": {
+          "branch_key": "default",
+          "offered_order": [
+            "c_close",
+            "c_read",
+            "c_breach"
+          ],
+          "reordered": false
+        }
+      },
       "reflection": null,
       "reordered": false,
       "scene_id": "records",
@@ -84,6 +116,38 @@
         "c_map",
         "c_doors"
       ],
+      "provenance": {
+        "adaptations": [
+          {
+            "kind": "branch_selection",
+            "ordering": [],
+            "provenance": {
+              "source_event_seq": 2,
+              "trigger_snapshot": {
+                "dominant": "kindness",
+                "tendency_counts": [
+                  [
+                    "kindness",
+                    2
+                  ]
+                ],
+                "turn_count": 2
+              }
+            },
+            "revealed": "kindness",
+            "slot_key": "corridor"
+          }
+        ],
+        "baseline": {
+          "branch_key": "default",
+          "offered_order": [
+            "c_help",
+            "c_map",
+            "c_doors"
+          ],
+          "reordered": false
+        }
+      },
       "reflection": "Mirror noticed: you chose kindness in 3 of 3 moments so far.\n  reason: reassured the technician at intake; left another participant's file closed; guided a disoriented participant to safety.",
       "reordered": false,
       "scene_id": "corridor",
@@ -112,6 +176,42 @@
         "c_walk",
         "c_log"
       ],
+      "provenance": {
+        "adaptations": [
+          {
+            "kind": "choice_reordering",
+            "ordering": [
+              "c_wait",
+              "c_walk",
+              "c_log"
+            ],
+            "provenance": {
+              "source_event_seq": 3,
+              "trigger_snapshot": {
+                "dominant": "kindness",
+                "tendency_counts": [
+                  [
+                    "kindness",
+                    3
+                  ]
+                ],
+                "turn_count": 3
+              }
+            },
+            "revealed": null,
+            "slot_key": "confrontation"
+          }
+        ],
+        "baseline": {
+          "branch_key": "fixed",
+          "offered_order": [
+            "c_walk",
+            "c_log",
+            "c_wait"
+          ],
+          "reordered": false
+        }
+      },
       "reflection": null,
       "reordered": true,
       "scene_id": "confrontation",
@@ -140,6 +240,38 @@
         "c_audit",
         "c_break"
       ],
+      "provenance": {
+        "adaptations": [
+          {
+            "kind": "branch_selection",
+            "ordering": [],
+            "provenance": {
+              "source_event_seq": 4,
+              "trigger_snapshot": {
+                "dominant": "kindness",
+                "tendency_counts": [
+                  [
+                    "kindness",
+                    4
+                  ]
+                ],
+                "turn_count": 4
+              }
+            },
+            "revealed": "kindness",
+            "slot_key": "exit"
+          }
+        ],
+        "baseline": {
+          "branch_key": "default",
+          "offered_order": [
+            "c_accept",
+            "c_audit",
+            "c_break"
+          ],
+          "reordered": false
+        }
+      },
       "reflection": null,
       "reordered": false,
       "scene_id": "exit",

@@ -47,9 +47,10 @@ from typing import Sequence
 
 from loop.core import PlayerState
 
+from .adapt import adapt_slot
 from .session import LoopRecord, Session, play_session, scripted_policy
-from .variants import VARIANT_NAMES, build_variant
-from .world import DEFAULT_WORLD, World
+from .variants import ADAPTIVE, FIXED, VARIANT_NAMES, build_variant
+from .world import DEFAULT_WORLD, Slot, World, get_world
 
 #: Bump when the snapshot shape changes incompatibly, so a stale golden fixture
 #: (or an old persisted snapshot) fails loudly instead of comparing apples to
@@ -112,6 +113,9 @@ class RunResult:
 
         Pure function of ``(seed, input log, variant, world)``: no clock, no PID,
         no paths, no RNG — so two runs of the same inputs serialize identically.
+        Loop records in the adaptive arm carry a ``provenance`` tag for every
+        decision the adaptation layer emitted or mutated, so the log alone is
+        enough for :func:`strip_adaptation` to project the run to its baseline.
         """
         return {
             "schema_version": SCHEMA_VERSION,
@@ -121,7 +125,7 @@ class RunResult:
                 "world": self.world_name,
                 "input_log": list(self.input_log),
             },
-            "loops": [_loop_snapshot(record) for record in self.session.records],
+            "loops": self._loop_dicts(),
             "final_state": _final_state_snapshot(self.session.final_state),
         }
 
@@ -154,12 +158,36 @@ class RunResult:
                 "input_log": list(self.input_log),
             }
         ]
-        for record in self.session.records:
-            records.append({"type": "loop", **_loop_snapshot(record)})
+        for loop in self._loop_dicts():
+            records.append({"type": "loop", **loop})
         records.append(
             {"type": "final_state", **_final_state_snapshot(self.session.final_state)}
         )
         return records
+
+    def _loop_dicts(self) -> list[dict]:
+        """The per-loop snapshot dicts, with adaptation provenance threaded in.
+
+        Iterates the session with the *pre-loop* player state in hand, so each
+        adaptation the loop emitted is tagged with the exact Mirror read it was a
+        function of. Every loop in which the adaptation layer emitted or mutated
+        content gets a ``provenance`` block; baseline arms produce none, so their
+        per-loop dicts are byte-identical to what :func:`_loop_snapshot` would
+        emit alone — keeping the canonical baseline fixture unchanged.
+        """
+        world = get_world(self.world_name)
+        adaptive = self.variant == ADAPTIVE.name
+        loops: list[dict] = []
+        pre_state = PlayerState()
+        for slot, record in zip(world.slots, self.session.records):
+            entry = _loop_snapshot(record)
+            if adaptive:
+                provenance = _provenance_block(slot, record, pre_state)
+                if provenance is not None:
+                    entry["provenance"] = provenance
+            loops.append(entry)
+            pre_state = record.result.state
+        return loops
 
     def to_jsonl(self) -> str:
         """The run as canonical JSONL — one event per line, sorted keys.
@@ -199,6 +227,41 @@ def _loop_snapshot(record: LoopRecord) -> dict:
     }
 
 
+def _provenance_block(
+    slot: Slot, record: LoopRecord, pre_state: PlayerState
+) -> dict | None:
+    """The adaptation provenance for one loop, or ``None`` if nothing fired.
+
+    Defers to the single authoritative producer (:func:`game.adapt.adapt_slot`)
+    so the layer's emissions are tagged with the exact
+    :class:`~game.adaptation.Adaptation` records it would write to the audit log
+    — the same trigger snapshot and source event-seq, threaded with the
+    *pre-loop* player state the decision was a function of. Alongside the
+    adaptations the block carries a ``baseline`` view: the values the mutated
+    fields would have had under the identity baseline, sufficient on its own for
+    :func:`strip_adaptation` to invert the transform from the log alone.
+
+    The baseline view is reconstructed from the slot itself (via
+    :data:`~game.variants.FIXED`), **not** from ``record.declared`` — which on a
+    branch slot is the revealed branch's scene, whose choice IDs are not
+    guaranteed to equal the default branch's. Reading from the slot keeps the
+    projection sound for any world whose branches diverge in their authored
+    choice set, not only the one whose branches happen to share an ID spine.
+    """
+    adapted = adapt_slot(slot, pre_state)
+    if not adapted.adaptations:
+        return None
+    baseline_scene, baseline_branch = FIXED.select_scene(slot, pre_state)
+    return {
+        "adaptations": [a.to_dict() for a in adapted.adaptations],
+        "baseline": {
+            "branch_key": baseline_branch,
+            "offered_order": [c.id for c in baseline_scene.choices],
+            "reordered": False,
+        },
+    }
+
+
 def _final_state_snapshot(state: PlayerState) -> dict:
     """The resulting player model: the running tally and what the Mirror named.
 
@@ -210,6 +273,63 @@ def _final_state_snapshot(state: PlayerState) -> dict:
         "announced": sorted(state.announced),
         "turn_count": state.turn_count,
     }
+
+
+# --- The structural parity projection ----------------------------------------
+# Every event the adaptation layer emits or mutates in the canonical JSONL log
+# carries a ``provenance`` tag (:func:`_provenance_block`); this function is the
+# inverse — strip the tags, revert the mutated fields, and what remains is the
+# baseline arm's log on the same seed and inputs. This is the mechanism the
+# structural ``baseline ≡ adaptive`` parity gate
+# (``docs/adr/0001-m1-locks.md`` §1, ``docs/mirror_loop_m1_synthesis.md``)
+# depends on: the adaptive arm is the baseline arm with the adaptation seam
+# enabled, and the parity is recoverable from the log alone without re-running
+# the engine.
+
+
+def strip_adaptation(jsonl_text: str) -> str:
+    """Project an adaptive-arm JSONL log to its identity-baseline equivalent.
+
+    Iterates the log line by line and inverts everything the adaptation layer
+    tagged with provenance. For each ``loop`` record carrying a ``provenance``
+    block this reverts the mutated fields (``branch_key``, ``offered_order``,
+    ``reordered``) to the ``baseline`` view recorded inside it, then drops the
+    block; for the ``run`` header it relabels ``variant: "adaptive"`` to
+    ``"fixed"`` — the only run-level field the adaptation layer's choice of arm
+    influences. All other fields are pure functions of the player model and so
+    are arm-invariant by construction (the prediction, the reflection, the
+    system message, the tendency tally) and pass through unchanged.
+
+    The resulting text is byte-identical to ``run(seed, input_log,
+    variant="fixed").to_jsonl()`` on the same seed and input log — the mechanism
+    the parity gate depends on.
+
+    Raises ``ValueError`` if the log refers to a world this build does not
+    register (so an alien log fails loudly rather than silently producing a
+    not-quite-baseline projection); pure with respect to ``jsonl_text`` (no I/O,
+    no engine call), so the projection is exactly as deterministic as the log.
+    """
+    out_lines: list[str] = []
+    for line in jsonl_text.rstrip("\n").split("\n"):
+        if not line:
+            continue
+        record = json.loads(line)
+        rtype = record.get("type")
+        if rtype == "run":
+            if record.get("variant") == ADAPTIVE.name:
+                record["variant"] = FIXED.name
+            # An unknown world is a different kind of log; refuse rather than
+            # quietly producing a projection nobody can verify.
+            get_world(record["world"])
+        elif rtype == "loop":
+            provenance = record.pop("provenance", None)
+            if provenance is not None:
+                baseline = provenance["baseline"]
+                record["branch_key"] = baseline["branch_key"]
+                record["offered_order"] = list(baseline["offered_order"])
+                record["reordered"] = baseline["reordered"]
+        out_lines.append(json.dumps(record, sort_keys=True, separators=(",", ":")))
+    return "\n".join(out_lines) + "\n"
 
 
 def run(
