@@ -1,11 +1,15 @@
 """Templated flavor-text pack for the M1 adaptation beat.
 
-The M1 founder brief (``docs/mirror_loop_m1_founder_brief.md``) locks one
-templated flavor swap at **Act 1 Beat 2** — ``act1_02_questionnaire_genre``.
-The synthesis (``docs/mirror_loop_m1_synthesis.md``) marks the beat choice
-as Decision #1; this module carries the founder-brief resolution (Beat 2)
-and exposes the slot key as :data:`M1_ADAPTATION_BEAT_SLOT` so it changes in
-one place if the decision is revisited.
+The M1 founder brief (``docs/mirror_loop_m1_founder_brief.md`` §M1 scope,
+line 24: *"Adaptation: one templated flavor swap at Act 1 Beat 2."*) names
+**Act 1 Beat 2** — ``act1_02_questionnaire_genre`` — as the adaptation
+target. The synthesis (``docs/mirror_loop_m1_synthesis.md`` line 29) still
+lists the beat assignment as Decision #1 (the Engineering Lead recommends
+Beat 2, the Infra Architect recommends the Act 2 opening); the pack here
+ships against the founder-brief target but does not foreclose that
+decision — :data:`M1_ADAPTATION_BEAT_SLOT` is the single line to change if
+Decision #1 lands elsewhere, and the slot key is the only coupling to
+this beat.
 
 This module is the **content primitive** that swap consumes:
 
@@ -56,8 +60,11 @@ from typing import Mapping
 
 from mirror.state import MirrorState
 
-#: The Act 1 beat the M1 adaptation runs against. Centralised here so a
-#: single change updates every consumer if Decision #1 is revisited.
+#: The Act 1 beat the M1 adaptation runs against. Defaults to the
+#: founder-brief target (``docs/mirror_loop_m1_founder_brief.md`` line 24);
+#: synthesis Decision #1 (``docs/mirror_loop_m1_synthesis.md`` line 29) is
+#: not yet closed, so this constant is the single line to update if that
+#: decision lands on a different beat (e.g. the Act 2 opening).
 M1_ADAPTATION_BEAT_SLOT = "act1_02_questionnaire_genre"
 
 #: Confidence floor below which a MirrorState axis is treated as *unknown* for
