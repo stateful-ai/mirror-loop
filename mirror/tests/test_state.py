@@ -229,6 +229,65 @@ def test_snapshot_is_json_serializable_and_round_trips():
     assert restored["curiosity"]["confidence"] > 0
 
 
+def test_mirrorstate_to_dict_from_dict_round_trips_exactly():
+    # A non-trivial state: scalar moves, a distribution move, and a tick — so
+    # both the value- and evidence_count-bearing paths are exercised.
+    state = MirrorState.new()
+    state.apply_choice(Choice("c", signals=(
+        Signal.toward("curiosity", 1.0),
+        Signal.spend("playstyle_mix", "exploration"),
+        Signal.toward("frustration", 1.0, weight=0.5),
+    )))
+    state.tick()
+    state.apply_choice(Choice("d", signals=(
+        Signal.toward("authority_trust", -1.0),
+        Signal.spend("playstyle_mix", "conversation"),
+    )))
+
+    restored = MirrorState.from_dict(state.to_dict())
+    assert restored == state
+    # And the round-trip survives a JSON hop too (lists ↔ tuples for
+    # distributions, floats stable in JSON's exact-decimal forms used here).
+    assert MirrorState.from_dict(json.loads(json.dumps(state.to_dict()))) == state
+
+
+def test_mirrorstate_from_dict_recomputes_confidence_from_evidence_count():
+    # Confidence is a pure function of evidence_count + the spec, so from_dict
+    # recovers it deterministically rather than persisting it (the value the
+    # display-rounded snapshot() emits is lossy and unsafe to load back).
+    state = MirrorState.new()
+    state.apply_choice(Choice("c", signals=(Signal.toward("curiosity", 1.0),)))
+    data = state.to_dict()
+    assert "confidence" not in data["curiosity"]  # not part of the canonical form
+    restored = MirrorState.from_dict(data)
+    assert restored.readings["curiosity"].confidence == (
+        state.readings["curiosity"].confidence
+    )
+
+
+def test_mirrorstate_from_dict_rejects_unknown_attributes():
+    data = MirrorState.new().to_dict()
+    data["not_an_axis"] = {"value": 0.0, "evidence_count": 0.0}
+    with pytest.raises(ValueError, match="unknown attribute"):
+        MirrorState.from_dict(data)
+
+
+def test_mirrorstate_from_dict_defaults_missing_axes_to_neutral():
+    # A sparse dict (only some axes recorded) restores cleanly — every
+    # un-mentioned axis sits at its neutral / unknown value, matching the
+    # "blank mirror" baseline.
+    state = MirrorState.from_dict({})
+    assert state == MirrorState.new()
+
+
+def test_mirrorstate_from_dict_rejects_a_distribution_with_wrong_arity():
+    data = MirrorState.new().to_dict()
+    # playstyle_mix has four modes; ship three.
+    data["playstyle_mix"] = {"value": [0.4, 0.3, 0.3], "evidence_count": 1.0}
+    with pytest.raises(ValueError, match="distribution"):
+        MirrorState.from_dict(data)
+
+
 # --- an integration sketch: a session yields a differentiated (non-mush) profile
 
 

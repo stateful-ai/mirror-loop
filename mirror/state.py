@@ -215,5 +215,76 @@ class MirrorState:
         }
 
     def snapshot(self) -> dict:
-        """A JSON-serializable view for the event log / ActPackage snapshot."""
+        """A JSON-serializable, *display-rounded* view of the readings.
+
+        Intended for the event log / ActPackage snapshot and any human-facing
+        render — confidences are rounded to four decimals for legibility. Not
+        round-trip-stable; use :meth:`to_dict` / :meth:`from_dict` for that.
+        """
         return {name: r.as_dict() for name, r in self.readings.items()}
+
+    # --- canonical encode/decode (round-trip-stable) -------------------------
+    # Round-trip contract: ``from_dict(to_dict(state)) == state`` for any state
+    # produced by normal use, against the schema it was produced under. The
+    # serialized form records only the inputs that move (``value`` and
+    # ``evidence_count``); ``confidence`` is a pure function of evidence_count
+    # against the spec, so we recompute it on decode rather than persisting it
+    # (and rounding it away).
+
+    def to_dict(self) -> dict:
+        """Canonical serialized form of this MirrorState.
+
+        Symmetric inverse of :meth:`from_dict`; persists only the fields that
+        independently move (``value``, ``evidence_count``) so the round-trip is
+        exact against the current schema.
+        """
+        out: dict = {}
+        for name, reading in self.readings.items():
+            value = (
+                list(reading.value) if isinstance(reading.value, tuple) else reading.value
+            )
+            out[name] = {
+                "value": value,
+                "evidence_count": reading.evidence_count,
+            }
+        return out
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "MirrorState":
+        """Rebuild a MirrorState from :meth:`to_dict` output.
+
+        Validates against the *current* schema: unknown attribute names are
+        rejected (so a dict from a drifted schema fails loudly rather than
+        being half-restored), and missing names default to neutral/unknown.
+        Confidence is recomputed from ``evidence_count`` so it is consistent
+        with the spec even if the on-disk number had drifted.
+        """
+        extras = set(data) - set(MIRROR_SCHEMA)
+        if extras:
+            raise ValueError(
+                f"MirrorState dict has unknown attribute(s) "
+                f"{sorted(extras)!r} not in the current schema"
+            )
+        readings: dict[str, AttributeReading] = {}
+        for name, spec in MIRROR_SCHEMA.items():
+            entry = data.get(name)
+            if entry is None:
+                readings[name] = AttributeReading(value=spec.neutral_value())
+                continue
+            raw_value = entry["value"]
+            if spec.kind is AttributeKind.DISTRIBUTION:
+                value: float | tuple[float, ...] = tuple(float(v) for v in raw_value)
+                if len(value) != len(spec.modes):
+                    raise ValueError(
+                        f"{name!r}: distribution has {len(value)} entries, "
+                        f"schema expects {len(spec.modes)}"
+                    )
+            else:
+                value = float(raw_value)
+            evidence_count = float(entry.get("evidence_count", 0.0))
+            readings[name] = AttributeReading(
+                value=value,
+                evidence_count=evidence_count,
+                confidence=spec.confidence(evidence_count),
+            )
+        return cls(readings=readings)

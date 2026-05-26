@@ -10,9 +10,11 @@ The public surface is intentionally tiny:
 
 * :func:`load_scene` — parse a ``.scene`` file path into a typed ``Scene``.
 * :func:`loads_scene` — parse an in-memory source string (for tests/tools).
+* :func:`dumps_scene` — emit a ``Scene`` back to canonical ``.scene`` text
+  (the inverse of :func:`loads_scene`).
 * :class:`SceneFormatError` — raised for any malformed input, with line/column.
 """
 
-from game.scenes.loader import SceneFormatError, load_scene, loads_scene
+from game.scenes.loader import SceneFormatError, dumps_scene, load_scene, loads_scene
 
-__all__ = ("SceneFormatError", "load_scene", "loads_scene")
+__all__ = ("SceneFormatError", "dumps_scene", "load_scene", "loads_scene")
