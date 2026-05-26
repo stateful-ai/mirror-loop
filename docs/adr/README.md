@@ -6,14 +6,14 @@ new ADR that supersedes the old one rather than editing history.
 
 | ADR | Title | Status |
 |-----|-------|--------|
-| 0001 | M1 locks (mirror axis · Beat-2 adaptation · single-beat Reflection) | Planned — not yet written (execution plan §A5) |
+| [0001](0001-m1-locks.md) | M1 locks (mirror axis · Beat-2 adaptation · single-beat Reflection) | Accepted |
 | [0002](0002-runtime-platform.md) | Runtime / platform: terminal (CLI), rendering behind one interface | Accepted |
 
-`0001` is intentionally reserved: the M1 locks predate this directory and have
-their own ticket. When written, ADR-0001 cites
-[`../core_loop_feel.md`](../core_loop_feel.md) (the canonical 30s-beat feel-spec)
-as a normative input — alongside [`../CORE_LOOP.md`](../CORE_LOOP.md) for
-structure and [`../ADAPTATION.md`](../ADAPTATION.md) for the Beat-2 swap — so
-the feel decisions the ADR locks have a single source of truth. `0002` records
-the foundational runtime/platform choice, which the gameplay locks build on top
-of.
+`0001` records the three gameplay locks that fix the shape of the M1 slice — the
+one mirror axis (caution↔aggression), the one adaptation site (Act 1 Beat 2),
+and the single forced Reflection at Recalibration — and cites
+[`../core_loop_feel.md`](../core_loop_feel.md) (the canonical 30s-beat
+feel-spec) as a normative input alongside [`../CORE_LOOP.md`](../CORE_LOOP.md)
+for structure and [`../ADAPTATION.md`](../ADAPTATION.md) for the Beat-2 swap.
+`0002` records the foundational runtime/platform choice the gameplay locks
+build on top of.

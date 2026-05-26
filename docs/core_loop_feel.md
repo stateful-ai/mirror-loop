@@ -7,7 +7,7 @@ from the structural slice locked in [`docs/CORE_LOOP.md`](./CORE_LOOP.md).
 locked M1 brief ([`docs/mirror_loop_m1_founder_brief.md`](./mirror_loop_m1_founder_brief.md)
 "Locked"); the tone bible ([`docs/game_design.md`](./game_design.md) §3.3); the
 safety boundary ([`docs/GUARDRAILS.md`](./GUARDRAILS.md)).
-**Referenced by:** ADR-0001 (M1 locks — planned, [`docs/adr/README.md`](./adr/README.md)).
+**Referenced by:** [`docs/adr/0001-m1-locks.md`](./adr/0001-m1-locks.md) (M1 locks) as a normative input.
 
 > A **beat** is one core-loop turn — scene → choices → state update → optional
 > Reflection ([`docs/CORE_LOOP.md`](./CORE_LOOP.md) §1). CORE_LOOP locks the
@@ -81,4 +81,5 @@ each pattern **once**; nagging breaks the spell ([`docs/CORE_LOOP.md`](./CORE_LO
 ---
 
 When this doc and [`docs/CORE_LOOP.md`](./CORE_LOOP.md) disagree, CORE_LOOP wins
-on structure and this doc wins on feel. ADR-0001 (M1 locks) cites both.
+on structure and this doc wins on feel.
+[`docs/adr/0001-m1-locks.md`](./adr/0001-m1-locks.md) cites both.

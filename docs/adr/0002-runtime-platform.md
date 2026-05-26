@@ -10,10 +10,10 @@ acceptance gate ([`docs/THESIS.md`](../THESIS.md)); and the company principle
 *"keep the simulation core pure (no I/O, render, clock, entropy) and the runtime a
 thin shell, making the platform choice reversible."*
 
-> **Note on numbering.** `0001` is reserved for the planned *M1 locks* ADR (mirror
-> axis, Beat-2 adaptation, single-beat Reflection cadence — execution plan §A5,
-> not yet written). This ADR records the separate, foundational runtime/platform
-> decision, which logically precedes those gameplay locks.
+> **Note on numbering.** [`0001`](./0001-m1-locks.md) records the *M1 gameplay
+> locks* (mirror axis, Beat-2 adaptation, single-beat Reflection cadence). This
+> ADR records the separate, foundational runtime/platform decision those
+> gameplay locks build on top of.
 
 ---
 
