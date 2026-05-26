@@ -33,9 +33,12 @@ from game.replay import (
     CANONICAL_INPUT_LOG,
     DEFAULT_SEED,
     GOLDEN_FIXTURE,
+    M1_CANONICAL_FIXTURE,
+    SCHEMA_VERSION,
     RunResult,
     canonical_run,
     load_golden,
+    load_m1_canonical,
     main,
     run,
 )
@@ -334,3 +337,117 @@ def test_cli_check_detects_drift(tmp_path, monkeypatch, capsys):
 def test_golden_fixture_path_is_tracked_and_present():
     assert GOLDEN_FIXTURE.exists()
     assert GOLDEN_FIXTURE.parent.name == "fixtures"
+
+
+# --- m1_canonical.jsonl: the founder-brief event-stream fixture -----------------
+
+
+def test_m1_canonical_fixture_lives_at_the_brief_declared_path():
+    # The M1 founder brief names this file as `fixtures/m1_canonical.jsonl` at
+    # the repo root (not under any package), so the byte-identity gate has a
+    # single, locatable home that future contributors can find from the brief
+    # alone.
+    assert M1_CANONICAL_FIXTURE == REPO_ROOT / "fixtures" / "m1_canonical.jsonl"
+    assert M1_CANONICAL_FIXTURE.exists()
+
+
+def test_canonical_run_matches_the_committed_m1_jsonl_fixture():
+    # The acceptance criterion for the fixture-capture task: re-running the
+    # canonical seed-42 run produces a byte-identical `fixtures/m1_canonical.jsonl`.
+    # If this fails after an intended change, regenerate with
+    # `python -m game.replay --write-m1-fixture` and review the diff.
+    assert canonical_run().to_jsonl() == load_m1_canonical()
+
+
+def test_m1_jsonl_is_byte_identical_across_two_runs():
+    # Two in-process runs of the canonical pair produce identical bytes — the
+    # JSONL-level analogue of `test_same_seed_and_log_are_byte_identical`, so a
+    # regression in JSONL serialization (key order, separators, line endings)
+    # fails here rather than only showing up via the committed-fixture diff.
+    assert canonical_run().to_jsonl() == canonical_run().to_jsonl()
+
+
+def test_m1_jsonl_holds_byte_identity_across_processes_and_hash_seeds():
+    # Same claim as the JSON gate, but for the JSONL form: a separate process
+    # under a different PYTHONHASHSEED must emit the same bytes. This catches
+    # any silent dependency on dict-iteration order or interpreter entropy in
+    # the new serializer.
+    def render(hash_seed: str) -> str:
+        env = {**os.environ, "PYTHONHASHSEED": hash_seed}
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "game.replay",
+                "--format",
+                "jsonl",
+                "--seed",
+                str(DEFAULT_SEED),
+            ],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return proc.stdout
+
+    assert render("0") == render("1") == canonical_run().to_jsonl()
+
+
+def test_m1_jsonl_fixture_is_well_formed_and_self_describing():
+    text = load_m1_canonical()
+    # Canonical: trailing newline, no leading/trailing blank lines.
+    assert text.endswith("\n")
+    lines = text.rstrip("\n").split("\n")
+    # 1 header + one record per slot + 1 trailer.
+    assert len(lines) == 1 + DEFAULT_WORLD.length + 1
+
+    records = [json.loads(line) for line in lines]
+    head, *loops, tail = records
+
+    assert head == {
+        "type": "run",
+        "schema_version": SCHEMA_VERSION,
+        "seed": DEFAULT_SEED,
+        "variant": BASELINE_VARIANT,
+        "world": DEFAULT_WORLD.name,
+        "input_log": list(CANONICAL_INPUT_LOG),
+    }
+    assert [r["type"] for r in loops] == ["loop"] * DEFAULT_WORLD.length
+    assert [r["loop_index"] for r in loops] == list(range(DEFAULT_WORLD.length))
+    assert [r["actual_action"] for r in loops] == list(CANONICAL_INPUT_LOG)
+    assert tail["type"] == "final_state"
+    # The trailer matches the in-process final state — the JSONL is a faithful
+    # serialization of the same run the JSON snapshot covers, not a parallel
+    # universe with its own data path.
+    expected_final = canonical_run().snapshot()["final_state"]
+    assert {k: v for k, v in tail.items() if k != "type"} == expected_final
+
+
+def test_m1_jsonl_lines_are_compact_canonical_json():
+    # Each JSONL line is a single JSON object with sorted keys and no extra
+    # whitespace; this is what makes line-by-line diffs informative and keeps
+    # the file from carrying serialization-only churn.
+    text = load_m1_canonical()
+    for line in text.rstrip("\n").split("\n"):
+        record = json.loads(line)
+        assert json.dumps(record, sort_keys=True, separators=(",", ":")) == line
+
+
+def test_cli_check_m1_passes_against_the_committed_fixture(capsys):
+    assert main(["--check-m1"]) == 0
+    assert "PASS" in capsys.readouterr().out
+
+
+def test_cli_format_jsonl_emits_the_canonical_event_stream(capsys):
+    assert main(["--format", "jsonl"]) == 0
+    assert capsys.readouterr().out == canonical_run().to_jsonl()
+
+
+def test_cli_check_m1_detects_drift(tmp_path, monkeypatch, capsys):
+    stale = tmp_path / "stale.jsonl"
+    stale.write_text("{\"type\":\"run\"}\n", encoding="utf-8")
+    monkeypatch.setattr("game.replay.M1_CANONICAL_FIXTURE", stale)
+    assert main(["--check-m1"]) == 1
+    assert "FAIL" in capsys.readouterr().err
