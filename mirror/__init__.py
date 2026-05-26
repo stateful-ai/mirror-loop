@@ -8,6 +8,8 @@ Public API:
 - Runtime: ``MirrorState``, ``Choice``, ``Signal``, ``AttributeReading``.
 - Event log / reducer: ``EventLog``, ``MirrorEvent``, ``ChoiceObserved``,
   ``TurnAdvanced``, ``reduce``, ``scan``, ``log_from_choices``.
+- Questionnaire intake: ``QUESTIONNAIRE``, ``encode``, ``seed_log``,
+  ``seed_state`` — the deterministic JSON→event mapping (``docs/INTAKE.md``).
 
 The event log is the source of truth; the Mirror is a pure reduction over it.
 See ``docs/MIRROR_SCHEMA.md`` for the schema spec, the anti-mush review, and the
@@ -46,6 +48,14 @@ from mirror.state import (
     MirrorState,
     Signal,
 )
+from mirror.intake import (
+    QUESTIONNAIRE,
+    QUESTIONNAIRE_BY_ID,
+    QuestionnaireQuestion,
+    encode as encode_intake,
+    seed_log as intake_seed_log,
+    seed_state as intake_seed_state,
+)
 
 __all__ = [
     "MIRROR_SCHEMA",
@@ -72,4 +82,10 @@ __all__ = [
     "reduce",
     "scan",
     "log_from_choices",
+    "QUESTIONNAIRE",
+    "QUESTIONNAIRE_BY_ID",
+    "QuestionnaireQuestion",
+    "encode_intake",
+    "intake_seed_log",
+    "intake_seed_state",
 ]
