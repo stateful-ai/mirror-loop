@@ -1,0 +1,31 @@
+# The opening scene of the handcrafted Mirror Lab spine.
+#
+# This is the worked example for the .scene authoring format documented in
+# docs/SCENE_FORMAT.md. It is byte-equivalent to game.world.INTAKE (the
+# in-code authoring of the same scene), and game/tests/test_scenes.py pins
+# that equivalence.
+#
+# The choice ids, tendencies, and evidence phrases are stable references the
+# rest of the runtime depends on; do not rename them without updating the
+# code that cites them.
+
+id: intake
+
+prompt:
+  The Mirror Lab's intake room is warm and spotless. A technician fits the
+  headset to your head; her hands are shaking.
+
+choice c_reassure:
+  tendency: kindness
+  text: Tell her to take her time — you are in no hurry.
+  evidence: reassured the technician at intake
+
+choice c_measure:
+  tendency: control
+  text: Ask exactly what the headset records, and where it goes.
+  evidence: interrogated the headset's purpose at intake
+
+choice c_refuse:
+  tendency: defiance
+  text: Keep the headset off until someone explains how to leave.
+  evidence: refused the headset until told the way out
