@@ -18,7 +18,7 @@ from textwrap import dedent
 
 import pytest
 
-from game.scenes import SceneFormatError, load_scene, loads_scene
+from game.scenes import SceneFormatError, dumps_scene, load_scene, loads_scene
 from game.world import INTAKE
 from loop.core import Choice, Scene
 
@@ -448,3 +448,98 @@ def test_value_that_looks_like_python_is_treated_as_inert_text():
     [choice] = loads_scene(src).choices
     assert choice.text == "__import__('os').system('echo pwned')"
     assert isinstance(choice.text, str)
+
+
+# --- Scene encode/decode round-trip (the canonical Scene serialization) -----
+
+
+def test_dumps_scene_round_trips_the_shipped_example():
+    # The .scene text format IS Scene's serialization. The shipped example, when
+    # round-tripped through the dumper, must reload byte-equivalent — proving
+    # the canonical (encode, decode) pair is symmetric on real authored data.
+    scene = load_scene(EXAMPLE_PATH)
+    assert loads_scene(dumps_scene(scene)) == scene
+
+
+def test_dumps_scene_round_trips_an_in_code_scene():
+    scene = Scene(
+        id="confrontation",
+        prompt="Two guards block the door.\n\nOne speaks first.",
+        choices=(
+            Choice(
+                id="c_wait",
+                text="Wait for them to make the first move.",
+                tendency="kindness",
+                evidence="waited for the guards to speak first",
+            ),
+            Choice(
+                id="c_walk",
+                text="Walk straight past, eyes ahead.",
+                tendency="defiance",
+                evidence="walked past the guards without breaking stride",
+            ),
+        ),
+    )
+    assert loads_scene(dumps_scene(scene)) == scene
+
+
+def test_dumps_scene_preserves_multi_paragraph_prompts():
+    src = dedent(
+        """\
+        id: s
+        prompt:
+          First paragraph.
+
+          Second paragraph.
+        choice c:
+          tendency: kindness
+          text: Nod.
+          evidence: nodded
+        """
+    )
+    scene = loads_scene(src)
+    dumped = dumps_scene(scene)
+    assert "\n\n" in dumped  # paragraph break survived
+    assert loads_scene(dumped) == scene
+
+
+def test_dumps_scene_double_round_trip_is_idempotent():
+    scene = load_scene(EXAMPLE_PATH)
+    once = dumps_scene(scene)
+    twice = dumps_scene(loads_scene(once))
+    assert once == twice
+
+
+def test_dumps_scene_rejects_a_value_with_a_tab():
+    bad = Scene(
+        id="s",
+        prompt="P",
+        choices=(Choice(id="c", text="ok", tendency="kindness", evidence="had\ta tab"),),
+    )
+    with pytest.raises(SceneFormatError, match="tab"):
+        dumps_scene(bad)
+
+
+def test_dumps_scene_rejects_a_value_with_a_newline():
+    bad = Scene(
+        id="s",
+        prompt="P",
+        choices=(Choice(id="c", text="line1\nline2", tendency="kindness", evidence="ok"),),
+    )
+    with pytest.raises(SceneFormatError, match="newline"):
+        dumps_scene(bad)
+
+
+def test_dumps_scene_rejects_a_scene_with_no_choices():
+    with pytest.raises(SceneFormatError, match="no choices"):
+        dumps_scene(Scene(id="s", prompt="P", choices=()))
+
+
+def test_dumps_scene_rejects_an_empty_prompt():
+    bad = Scene(
+        id="s",
+        prompt="",
+        choices=(Choice(id="c", text="t", tendency="kindness", evidence="e"),),
+    )
+    with pytest.raises(SceneFormatError, match="empty prompt"):
+        dumps_scene(bad)

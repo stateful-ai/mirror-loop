@@ -83,6 +83,74 @@ def loads_scene(source: str) -> Scene:
     return _Parser(source).parse()
 
 
+def dumps_scene(scene: Scene) -> str:
+    """Emit a :class:`Scene` as the canonical ``.scene`` text form.
+
+    The inverse of :func:`loads_scene`: ``loads_scene(dumps_scene(s)) == s`` for
+    any Scene built through normal authoring. Comments are not preserved
+    (they're not part of the Scene), and each prompt paragraph is collapsed to a
+    single indented line so the round-trip is stable through the parser's
+    "fold indented lines into one paragraph" rule.
+
+    Raises :class:`SceneFormatError` (with ``lineno=0`` since there is no source
+    line) if the Scene contains content the format cannot represent — an empty
+    prompt, no choices, or a tab in any value.
+    """
+    if not scene.choices:
+        raise SceneFormatError(
+            "cannot dump a scene with no choices (the format requires >= 1)", 0
+        )
+    paragraphs = [p for p in scene.prompt.split("\n\n")]
+    if not any(p.strip() for p in paragraphs):
+        raise SceneFormatError(
+            "cannot dump a scene with an empty prompt", 0
+        )
+
+    lines: list[str] = [f"id: {scene.id}", "", "prompt:"]
+    for i, paragraph in enumerate(paragraphs):
+        if i > 0:
+            lines.append("")
+        # A paragraph may legitimately contain single newlines (from in-code
+        # authoring) — flatten them to spaces so the dumped form is the one the
+        # parser will fold back into the same paragraph string.
+        collapsed = " ".join(line.strip() for line in paragraph.splitlines() if line.strip())
+        if "\t" in collapsed:
+            raise SceneFormatError(
+                "scene prompt contains a tab; the .scene format forbids tabs", 0
+            )
+        lines.append(f"  {collapsed}")
+
+    for choice in scene.choices:
+        for field_name, value in (
+            ("tendency", choice.tendency),
+            ("text", choice.text),
+            ("evidence", choice.evidence),
+        ):
+            if "\t" in value:
+                raise SceneFormatError(
+                    f"choice {choice.id!r} field {field_name!r} contains a tab; "
+                    "the .scene format forbids tabs",
+                    0,
+                )
+            if "\n" in value:
+                raise SceneFormatError(
+                    f"choice {choice.id!r} field {field_name!r} contains a newline; "
+                    "the .scene format requires single-line field values",
+                    0,
+                )
+        lines.extend(
+            (
+                "",
+                f"choice {choice.id}:",
+                f"  tendency: {choice.tendency}",
+                f"  text: {choice.text}",
+                f"  evidence: {choice.evidence}",
+            )
+        )
+
+    return "\n".join(lines) + "\n"
+
+
 # --- Internal --------------------------------------------------------------
 
 

@@ -1,20 +1,28 @@
-"""The "mirror" player-state schema — the typed set of attributes the system
-infers about the player, and the static rules that govern how each one moves.
+"""The "mirror" player-state schema — and the frozen domain-types index.
 
-Mirror Loop's locked thesis (``docs/THESIS.md``) is that a lightweight player
-model can out-predict a naive baseline. That only works if the inferred state is
-*coherent*: a small set of orthogonal, independently-evidenced axes — not a pile
-of vaguely-named scalars that all drift together. We call the failure mode
-**mush**, and this module is deliberately built to make mush hard to introduce.
+This module serves two related jobs:
 
-This file holds the **static schema** (what the axes are and how each is allowed
-to move). ``mirror/state.py`` holds the **runtime state** (a player's current
-values) and applies the per-choice updates. ``docs/MIRROR_SCHEMA.md`` is the
-human-facing review, including the mapping from the seed design's loose
-``game_design.md`` §6.1 feature list onto these axes.
+1. **The static Mirror schema** (the *original* responsibility) — the typed set
+   of attributes the system infers about the player, and the static rules that
+   govern how each one moves. Mirror Loop's locked thesis (``docs/THESIS.md``)
+   is that a lightweight player model can out-predict a naive baseline. That
+   only works if the inferred state is *coherent*: a small set of orthogonal,
+   independently-evidenced axes — not a pile of vaguely-named scalars that all
+   drift together. We call the failure mode **mush**, and this module is
+   deliberately built to make mush hard to introduce. ``mirror/state.py``
+   holds the runtime values and applies the per-choice updates;
+   ``docs/MIRROR_SCHEMA.md`` is the human-facing review. The anti-mush
+   invariants are not just prose: :func:`assert_coherent` enforces them at
+   import time, so a mushy schema can never load.
 
-The anti-mush invariants are not just prose: ``assert_coherent()`` enforces them,
-and the tests run it, so the schema cannot silently rot back into mush.
+2. **The frozen domain-types index** (``docs/SCHEMAS.md``) — the four
+   versioned, serializable types the rest of the build reduces and records
+   against: :class:`Event`, :class:`MirrorState`, :class:`Scene`, and
+   :class:`Adaptation`. Each is **defined once**, in its canonical module, and
+   re-exported here as the single discoverable import path. The re-exports are
+   lazy (PEP 562 ``__getattr__``) because ``mirror`` sits at the bottom of the
+   dependency graph — ``loop`` and ``game`` depend on it, not the other way
+   round — so the index does not bind those modules at import time.
 
     python -m mirror   # prints the schema table + the coherence report
 """
@@ -403,3 +411,61 @@ def assert_coherent() -> None:
 
 # Fail fast at import time: a mushy schema should never be loadable.
 assert_coherent()
+
+
+# --- The frozen domain-types index --------------------------------------------
+#
+# The M1 architecture (``docs/SCHEMAS.md``) freezes four versioned, serializable
+# types as the contract everything else reduces and records against:
+#
+#   * :class:`Event`          — what the player did (``mirror.log``).
+#                               A discriminated union of ``ChoiceObserved`` and
+#                               ``TurnAdvanced``; encode/decode via
+#                               ``event_to_dict`` / ``event_from_dict``.
+#   * :class:`MirrorState`    — the player model (``mirror.state``).
+#                               Pure reduction of the Event log; encode/decode
+#                               via :meth:`MirrorState.to_dict` /
+#                               :meth:`MirrorState.from_dict`.
+#   * :class:`Scene`          — the smallest authored unit (``loop.core``).
+#                               Encode/decode via the ``.scene`` text format in
+#                               :mod:`game.scenes` (``loads_scene`` /
+#                               ``dumps_scene``).
+#   * :class:`Adaptation`     — one content decision plus its provenance
+#                               (``game.adaptation``). Encode/decode via
+#                               :meth:`Adaptation.to_dict` /
+#                               :meth:`Adaptation.from_dict`.
+#
+# Each type is **defined once**, in the module above, and re-exported here as
+# the canonical import path. ``mirror`` sits at the bottom of the dependency
+# graph (``loop``/``game`` depend on it, not the other way round), so the
+# re-exports use PEP 562 ``__getattr__`` to defer the inter-package imports
+# until access time — keeping ``mirror.schema`` itself import-cycle-free.
+#
+# All four types carry an independent version stamp (Event/MirrorState share
+# :data:`SCHEMA_VERSION` + :func:`schema_fingerprint`; Adaptation carries
+# ``ADAPTATION_SCHEMA_VERSION``); see ``docs/SCHEMAS.md`` §5 for the policy.
+
+_DOMAIN_TYPES = {
+    "Event": ("mirror.log", "MirrorEvent"),
+    "MirrorState": ("mirror.state", "MirrorState"),
+    "Scene": ("loop.core", "Scene"),
+    "Adaptation": ("game.adaptation", "Adaptation"),
+}
+
+
+def __getattr__(name: str):
+    """Lazy re-export of the canonical domain types — see :data:`_DOMAIN_TYPES`."""
+    binding = _DOMAIN_TYPES.get(name)
+    if binding is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    import importlib
+
+    module = importlib.import_module(binding[0])
+    value = getattr(module, binding[1])
+    globals()[name] = value  # cache: subsequent access is direct
+    return value
+
+
+def __dir__() -> list[str]:
+    """Make the lazy domain types discoverable via ``dir()`` and IDE completion."""
+    return sorted(set(globals()) | set(_DOMAIN_TYPES))
