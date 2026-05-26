@@ -17,7 +17,7 @@ dev = ["pytest>=7.0"]
 packages = ["acceptance", "mirror", "loop", "game", "game.scenes", "guardrails", "runtime", "llmbench", "telemetry"]
 
 [tool.setuptools.package-data]
-"game.scenes" = ["data/*.scene"]
+"game.scenes" = ["data/*.scene", "data/act1/*.scene"]
 
 [tool.pytest.ini_options]
 testpaths = ["acceptance/tests", "mirror/tests", "loop/tests", "game/tests", "guardrails/tests", "runtime/tests", "llmbench/tests", "telemetry/tests"]

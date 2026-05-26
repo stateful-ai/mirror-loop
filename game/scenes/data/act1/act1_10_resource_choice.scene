@@ -1,0 +1,21 @@
+id: act1_10_resource_choice
+
+prompt:
+  A small kiosk on the path offers a "calibration token" you can either
+  spend on your own next scene or hand to the gardener for theirs. There is
+  exactly one token.
+
+choice c_keep_token:
+  tendency: control
+  text: Keep the token and apply it to your own next scene's options.
+  evidence: kept the calibration token to optimise your own next scene
+
+choice c_burn_token:
+  tendency: defiance
+  text: Tear the token in half and drop the pieces on the kiosk counter.
+  evidence: destroyed the calibration token rather than spend it either way
+
+choice c_give_token:
+  tendency: kindness
+  text: Hand the token to the gardener without saying anything.
+  evidence: gave the calibration token to a stranger without comment

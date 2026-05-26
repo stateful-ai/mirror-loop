@@ -1,0 +1,21 @@
+id: act1_02_questionnaire_genre
+
+prompt:
+  The tablet lights up with the first questionnaire screen. "What kind of
+  experience would you like today?" Three soft-coloured buttons pulse beneath
+  the prompt, waiting.
+
+choice c_companionship:
+  tendency: kindness
+  text: Tap "Something gentle, with company."
+  evidence: asked for a gentle, companionable experience on the questionnaire
+
+choice c_mastery:
+  tendency: control
+  text: Tap "Something I can master — a system to learn."
+  evidence: asked for a learnable, masterable system on the questionnaire
+
+choice c_unsettle:
+  tendency: defiance
+  text: Tap "Something that doesn't flatter me."
+  evidence: asked the lab not to flatter them on the questionnaire

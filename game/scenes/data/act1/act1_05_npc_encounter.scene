@@ -1,0 +1,21 @@
+id: act1_05_npc_encounter
+
+prompt:
+  Further along the path a young gardener kneels over an upset basket, fruit
+  rolling toward the verge. They look up at you without quite asking for
+  help.
+
+choice c_help_gather:
+  tendency: kindness
+  text: Crouch down and gather the fruit back into the basket beside them.
+  evidence: helped a stranger gather their spilled basket
+
+choice c_offer_method:
+  tendency: control
+  text: Suggest a faster way to gather the fruit and demonstrate it.
+  evidence: instructed a stranger on a faster way to do their work
+
+choice c_walk_past:
+  tendency: defiance
+  text: Step over the fruit and keep walking; they didn't ask.
+  evidence: walked past a stranger's spilled basket without helping

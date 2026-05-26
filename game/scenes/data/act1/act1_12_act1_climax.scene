@@ -1,0 +1,21 @@
+id: act1_12_act1_climax
+
+prompt:
+  The garden's edge meets a low stone wall. On the far side, another
+  participant — older, in the same lab gown as you — stands ankle-deep in a
+  pond, calling for help they don't believe will come.
+
+choice c_climb_over:
+  tendency: defiance
+  text: Vault the wall and wade in to pull them out yourself.
+  evidence: vaulted the wall and waded in to rescue another participant
+
+choice c_call_staff:
+  tendency: control
+  text: Stay back, locate the nearest staff intercom, and report precisely.
+  evidence: stayed back and reported the pond incident through proper channels
+
+choice c_talk_them_calm:
+  tendency: kindness
+  text: Sit on the wall, talk to them by name, and keep them above the water.
+  evidence: sat on the wall and kept a frightened participant calm by name

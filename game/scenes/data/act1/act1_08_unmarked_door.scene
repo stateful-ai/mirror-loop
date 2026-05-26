@@ -1,0 +1,21 @@
+id: act1_08_unmarked_door
+
+prompt:
+  In a hedge wall you find an unmarked service door, slightly ajar. Through
+  the gap you can see lab-pale corridors that don't belong to the garden
+  fiction at all.
+
+choice c_open_door:
+  tendency: defiance
+  text: Pull the door wide and stand in the threshold to see how the lab reacts.
+  evidence: pulled open the unmarked service door and held the threshold
+
+choice c_close_softly:
+  tendency: kindness
+  text: Ease the door closed; whoever left it open didn't mean for guests to see.
+  evidence: closed the unmarked door gently to spare whoever left it open
+
+choice c_photograph_first:
+  tendency: control
+  text: Note the door's dimensions, hinges, and corridor layout before deciding.
+  evidence: documented the unmarked service door before touching it

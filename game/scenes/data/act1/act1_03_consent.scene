@@ -1,0 +1,21 @@
+id: act1_03_consent
+
+prompt:
+  A technician walks you into a small room. A consent form fills the wall in
+  six paragraphs. At the bottom: "I understand that the experience adapts to
+  my behaviour."
+
+choice c_sign_kindly:
+  tendency: kindness
+  text: Sign, smile at the technician, and tell her you trust her not to push too hard.
+  evidence: signed the consent and asked the technician for gentleness
+
+choice c_sign_after_reading:
+  tendency: control
+  text: Read every paragraph aloud, ask which clauses are negotiable, and then sign.
+  evidence: cross-examined every clause of the consent form before signing
+
+choice c_sign_under_protest:
+  tendency: defiance
+  text: Sign, but write "under protest" beside your name.
+  evidence: signed the consent under written protest

@@ -1,0 +1,21 @@
+id: act1_07_authority_request
+
+prompt:
+  A voice from a speaker built into the bench: "Please remain on the path for
+  the next segment. Thank you for your cooperation." The speaker waits, as
+  if measuring your reply.
+
+choice c_comply_precisely:
+  tendency: control
+  text: Acknowledge the request out loud and re-centre yourself on the path.
+  evidence: complied with the system's request precisely and audibly
+
+choice c_warm_acknowledge:
+  tendency: kindness
+  text: Say "of course" softly, as you would to a tired colleague.
+  evidence: agreed kindly to the system's request as if to a colleague
+
+choice c_refuse_aloud:
+  tendency: defiance
+  text: Say "no" clearly and step half a metre off the path on purpose.
+  evidence: refused the system's path request and stepped off deliberately
