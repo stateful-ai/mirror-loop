@@ -1,0 +1,21 @@
+id: act1_04_first_scene
+
+prompt:
+  The room dims and re-renders as a sunlit garden path. A wooden sign at the
+  fork reads "Welcome. Take your time." Three small markers wait at the
+  start of the path.
+
+choice c_walk_with_npc:
+  tendency: kindness
+  text: Walk with the figure already on the path and match their pace.
+  evidence: walked beside an NPC at their pace in the opening garden
+
+choice c_survey_garden:
+  tendency: control
+  text: Stop and map the path's branches before stepping onto it.
+  evidence: surveyed the opening garden's layout before stepping onto it
+
+choice c_step_off_path:
+  tendency: defiance
+  text: Step off the marked path immediately and head into the long grass.
+  evidence: stepped off the marked garden path immediately

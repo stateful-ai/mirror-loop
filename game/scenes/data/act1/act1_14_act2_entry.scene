@@ -1,0 +1,21 @@
+id: act1_14_act2_entry
+
+prompt:
+  A door opens in the grey wall. The corridor beyond is darker, narrower,
+  and the air is cooler. A small panel beside the door reads "ACT 2:
+  CHALLENGE CALIBRATION. Step through when ready."
+
+choice c_brace_and_step:
+  tendency: control
+  text: Square your shoulders, check the corridor's exits visually, and step through.
+  evidence: surveyed the Act 2 corridor's exits before stepping through
+
+choice c_stride_through:
+  tendency: defiance
+  text: Walk through the door at full pace without breaking stride.
+  evidence: strode into the Act 2 corridor without slowing down
+
+choice c_cross_threshold_gently:
+  tendency: kindness
+  text: Step through softly, the way you'd enter a room where someone is asleep.
+  evidence: crossed into Act 2 quietly, as if entering a sleeping room

@@ -1,0 +1,21 @@
+id: act1_01_intake
+
+prompt:
+  You arrive at the Mirror Lab's reception desk. The light is warm, the carpet
+  new. A receptionist slides a tablet across to you and a printed
+  participation guide titled "Your Personalized Experience."
+
+choice c_greet:
+  tendency: kindness
+  text: Smile, thank the receptionist, and ask how their morning is going.
+  evidence: greeted lab staff warmly at the intake desk
+
+choice c_inspect:
+  tendency: control
+  text: Read the participation guide line by line before signing anything.
+  evidence: scrutinised the participation guide line by line at intake
+
+choice c_question:
+  tendency: defiance
+  text: Ask what happens to people who change their mind partway through.
+  evidence: questioned the lab's exit policy at intake

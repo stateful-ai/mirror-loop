@@ -1,0 +1,21 @@
+id: act1_06_optional_lore
+
+prompt:
+  At a bend in the path a small reading bench holds three bound notebooks
+  labelled "previous participants." Nobody appears to be watching whether
+  you read them.
+
+choice c_log_first:
+  tendency: control
+  text: Open all three and copy the headings into your own notebook.
+  evidence: catalogued the previous participants' notebooks methodically
+
+choice c_read_gently:
+  tendency: kindness
+  text: Read only the first page of each, slowly, as if they were a guest book.
+  evidence: read the participants' notebooks slowly and respectfully
+
+choice c_burn_unread:
+  tendency: defiance
+  text: Close them unread and lay a hand-written "DO NOT KEEP THESE" on top.
+  evidence: refused to read the participants' notebooks and labelled them off-limits

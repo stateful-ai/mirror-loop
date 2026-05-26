@@ -1,0 +1,21 @@
+id: act1_11_pattern_callback
+
+prompt:
+  The path opens onto a glass-walled observation deck. On the far wall the
+  lab has rendered a single line, large and unhurried: "We have noticed how
+  you tend to choose. Would you like to see?"
+
+choice c_say_no:
+  tendency: defiance
+  text: Say "no" out loud and step away from the wall.
+  evidence: refused the lab's offer to show you its read of you
+
+choice c_demand_full_model:
+  tendency: control
+  text: Ask to see the full model — every feature, not a summary.
+  evidence: demanded the lab show the full model it had built of you
+
+choice c_thank_them:
+  tendency: kindness
+  text: Smile up at the wall and say "thank you, not right now."
+  evidence: declined the lab's offer warmly without taking offence

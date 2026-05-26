@@ -1,0 +1,23 @@
+id: act1_13_recalibration
+
+prompt:
+  The garden fades. A grey room. A single sentence on the wall:
+
+  "PHASE 1 COMPLETE. Select the next calibration mode."
+
+  The lab waits for your input. Nothing else in the room moves.
+
+choice c_trust_the_system:
+  tendency: control
+  text: Choose "Trust the system. Calibrate as you see fit."
+  evidence: chose to trust the lab's calibration at the Phase 1 boundary
+
+choice c_more_surprising:
+  tendency: defiance
+  text: Choose "More surprising. Stop showing me what I expect."
+  evidence: demanded a more surprising next phase at recalibration
+
+choice c_more_comfortable:
+  tendency: kindness
+  text: Choose "More comfortable. Less weight, please."
+  evidence: asked the lab for a gentler next phase at recalibration
