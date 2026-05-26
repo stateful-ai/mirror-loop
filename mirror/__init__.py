@@ -16,6 +16,7 @@ reducer contract.
 
 from __future__ import annotations
 
+from mirror.canonical import canonical_dumps, canonical_loads
 from mirror.log import (
     ChoiceObserved,
     EventLog,
@@ -72,4 +73,6 @@ __all__ = [
     "reduce",
     "scan",
     "log_from_choices",
+    "canonical_dumps",
+    "canonical_loads",
 ]

@@ -35,6 +35,7 @@ import json
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 
+from mirror.canonical import canonical_dumps, canonical_loads
 from mirror.schema import SCHEMA_VERSION, schema_fingerprint
 from mirror.state import Choice, MirrorState, Signal
 
@@ -279,6 +280,68 @@ class EventLog:
     def from_json(cls, text: str) -> "EventLog":
         """Rebuild a log from a JSON string written by :meth:`to_json`."""
         return cls.from_dict(json.loads(text))
+
+    # --- canonical JSONL (the on-disk byte format; see docs/EVENT_LOG_JSONL.md)
+
+    def to_jsonl_bytes(self) -> bytes:
+        """Serialize to the canonical JSONL byte format.
+
+        Layout: one header line (``schema_version`` + ``fingerprint``) followed
+        by one canonical-JSON object per event, joined by ``\\n``, with a
+        trailing ``\\n``. Each line is encoded by :func:`canonical_dumps`
+        (sorted keys after NFC normalization, ASCII-escaped non-ASCII, shortest
+        round-tripping float repr, no whitespace, no NaN/Inf).
+
+        ``encode → decode → encode`` is byte-identical, pinned by
+        ``mirror/tests/test_jsonl_canonical.py``.
+        """
+        header = {
+            "schema_version": self.schema_version,
+            "fingerprint": self.fingerprint,
+        }
+        lines = [canonical_dumps(header)]
+        lines.extend(canonical_dumps(event_to_dict(e)) for e in self.events)
+        return ("\n".join(lines) + "\n").encode("ascii")
+
+    @classmethod
+    def from_jsonl_bytes(cls, data: bytes) -> "EventLog":
+        """Rebuild a log from :meth:`to_jsonl_bytes` output.
+
+        The header line is required (a log without ``schema_version`` +
+        ``fingerprint`` cannot prove it reduces against the current schema and
+        would be refused at reduce time anyway — we refuse it earlier, at load).
+        Embedded blank lines, ``\\r``, or a missing trailing newline are
+        rejected as non-canonical.
+        """
+        if not isinstance(data, (bytes, bytearray)):
+            raise TypeError(
+                f"from_jsonl_bytes expects bytes, got {type(data).__name__}"
+            )
+        if not data:
+            raise ValueError("canonical JSONL log is empty (no header line)")
+        if b"\r" in data:
+            raise ValueError("canonical JSONL must not contain CR; LF only")
+        if not data.endswith(b"\n"):
+            raise ValueError(
+                "canonical JSONL must end with a trailing newline"
+            )
+        text = data.decode("utf-8")
+        # ``[:-1]`` drops the trailing-newline terminator so we don't see a
+        # spurious empty final line. Any *other* blank line is a load error.
+        lines = text[:-1].split("\n")
+        if any(line == "" for line in lines):
+            raise ValueError("canonical JSONL must not contain blank lines")
+        header = canonical_loads(lines[0])
+        if not isinstance(header, dict) or "schema_version" not in header:
+            raise ValueError(
+                "canonical JSONL header line missing schema_version"
+            )
+        event_dicts = [canonical_loads(line) for line in lines[1:]]
+        return cls.from_dict({
+            "schema_version": header["schema_version"],
+            "fingerprint": header.get("fingerprint", ""),
+            "events": event_dicts,
+        })
 
 
 def log_from_choices(
