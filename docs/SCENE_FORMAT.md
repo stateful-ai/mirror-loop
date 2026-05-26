@@ -37,27 +37,35 @@ A scene file is UTF-8 text, line-oriented, with **Unix newlines** (LF). The
 loader splits on universal newlines, so CRLF is tolerated on read but LF is
 canonical. Indentation is **exactly two spaces** per level; tabs are rejected.
 
-Informal grammar:
+Informal grammar (`SKIP` = any number of `comment` and `blank` lines):
 
 ```
-file          := id_line  prompt_block  choice_block+   (with comments/blanks anywhere between)
+file          := SKIP  id_line  SKIP  prompt_block  SKIP  choice_block (SKIP choice_block)*  SKIP
 
 id_line       := "id:" SP <scene-id> NL
-prompt_block  := "prompt:" NL  ("  " <text> NL)+        -- one or more indented text lines
-choice_block  := "choice " <choice-id> ":" NL  field+   -- exactly three fields, any order
+prompt_block  := "prompt:" NL  prompt_line+            -- at least one text line
+prompt_line   := "  " <text> NL                        -- indented text, comment, or blank
+choice_block  := "choice " <choice-id> ":" NL  choice_body+
+choice_body   := field | comment | blank               -- exactly three distinct fields total
 field         := "  " ("tendency" | "text" | "evidence") ":" SP <value> NL
 
 comment       := /\s*#[^\n]*\n/        -- full-line comment, ignored
-blank         := /\s*\n/                -- ignored (or paragraph break inside prompt)
+blank         := /\s*\n/                -- ignored at top level; paragraph break inside prompt
 
 <scene-id>    := /[A-Za-z_][A-Za-z0-9_]*/
 <choice-id>   := /[A-Za-z_][A-Za-z0-9_]*/
-<value>       := any text; leading/trailing whitespace stripped; must be non-empty
+<value>       := UTF-8 text; leading/trailing whitespace stripped; must be non-empty;
+                 tabs in the value are rejected
 ```
 
 The required structural order is **`id:` → `prompt:` → one-or-more `choice
-<id>:`**. Comments and blank lines may appear anywhere between sections, and
-inside a `prompt:` block they serve as paragraph breaks (see §4).
+<id>:`**. Comments and blank lines may appear:
+
+- between any two top-level sections (ignored);
+- inside a `prompt:` block — a blank line is a paragraph break, and a
+  two-space-indented comment (`  #…`) is ignored without breaking the
+  paragraph (see §4);
+- inside a `choice <id>:` block, between its fields (ignored).
 
 ---
 

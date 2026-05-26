@@ -179,6 +179,57 @@ def test_loads_and_load_agree_on_the_example():
     assert loads_scene(text) == load_scene(EXAMPLE_PATH)
 
 
+def test_shipped_example_preserves_non_ascii_em_dash():
+    # The intake scene contains an em-dash ("take her time —"); the spec says
+    # the file is UTF-8 and values are "any text" with whitespace trimmed.
+    # Pin that the em-dash round-trips byte-for-byte through the loader (no
+    # accidental encoding coercion, no Unicode normalisation).
+    scene = load_scene(EXAMPLE_PATH)
+    [reassure] = [c for c in scene.choices if c.id == "c_reassure"]
+    assert "—" in reassure.text  # U+2014 EM DASH
+    assert reassure.text == "Tell her to take her time — you are in no hurry."
+
+
+def test_load_scene_reads_file_as_utf8(tmp_path):
+    # Direct check that load_scene opens the file as UTF-8 rather than the
+    # platform default (which on some Windows configs is cp1252 and would
+    # mangle the em-dash). Writes UTF-8 bytes explicitly, then loads.
+    src = (
+        "id: s\n"
+        "prompt:\n"
+        "  P\n"
+        "choice c:\n"
+        "  tendency: kindness\n"
+        "  text: café — 中文\n"  # café — 中文
+        "  evidence: ordered in three scripts\n"
+    )
+    path = tmp_path / "utf8.scene"
+    path.write_bytes(src.encode("utf-8"))
+    [choice] = load_scene(path).choices
+    assert choice.text == "café — 中文"
+
+
+def test_comments_between_choice_fields_are_ignored():
+    # The grammar (spec §2) allows comments inside a choice block between its
+    # fields. Pin that explicitly so the spec contradiction the reviewer
+    # flagged stays resolved.
+    src = dedent(
+        """\
+        id: s
+        prompt:
+          P
+        choice c:
+          # author note: this option is the kindness arm
+          tendency: kindness
+          # another note
+          text: x
+          evidence: y
+        """
+    )
+    [choice] = loads_scene(src).choices
+    assert choice == Choice(id="c", text="x", tendency="kindness", evidence="y")
+
+
 # --- Error cases (spec §5) --------------------------------------------------
 
 
