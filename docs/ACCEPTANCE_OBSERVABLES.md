@@ -108,11 +108,20 @@ single source of truth) and mirrored here:
 * `PRESENTATION_DIVERGENCE_FLOOR = 0.20` — mean per-pair fraction of loops on
   which the adaptive arm visibly differs from the baseline. Below it the seam
   is not doing the thing the type promises ([`docs/ADAPTATION.md`](./ADAPTATION.md)
-  §1) — there is no experience to compare. The canonical world has five loops
-  per session; a strongly-leaning player crosses the notice threshold by loop
-  ~3 and triggers branch selection on the remaining slots, so one-fifth is a
-  defensible *"the seam actually fired"* floor without depending on a specific
-  lean.
+  §1) — there is no experience to compare. Derivation: the canonical world is a
+  five-loop spine (intake, neutral in both arms, plus four branch-or-reorder
+  slots). The adaptive arm diverges from the fixed arm whenever the Mirror's
+  notice threshold fires (`branch_key` flips off `"default"`) **or** the
+  prediction surfaces first in `offered.choices`. Either firing on even one of
+  the four nudgeable slots is a per-pair rate of 1/5 = 0.20. The observed
+  canonical conservative-null population lands at ≈0.71 mean presentation
+  divergence (≈0.49 framing, ≈0.59 order), so 0.20 is set well below the
+  observed distribution — the **minimum** the seam must clear to be doing
+  anything at all, not a tight bar. **This is the floor the authors are
+  willing to be falsified by**: a future change that drives mean presentation
+  divergence below 0.20 falsifies the claim that the seam produces a visibly
+  different presentation at all, and the experience-change question becomes
+  unanswerable on that run.
 * `BEHAVIORAL_DIVERGENCE_FLOOR = 0.05` — mean per-pair fraction of loops on
   which the player's `actual_action` differs between arms. The conservative-
   null population pins this at zero by construction (presentation-independent
@@ -146,7 +155,13 @@ engine **already produces today**. Pinned by the test suite
 
 * Every `LoopPresentation` field is a direct attribute read on a
   `LoopRecord` the engine already builds. No new instrumentation hook,
-  no new event type, no Mirror replay.
+  no new event type, no Mirror replay. The exact field mapping
+  (`loop_index`, `offered.id`, `branch_key`, `offered.choices[*].id`,
+  `result.actual_action`) is pinned by
+  `test_loop_presentation_reads_record_fields_directly`, which drives a real
+  session through the engine and asserts each `LoopPresentation` attribute
+  equals the corresponding live `LoopRecord` attribute — so a future rename
+  fails that test first rather than silently breaking the contract.
 * The same five values round-trip through the projection JSON shape
   (`session_observables_log` / `load_pair_log`), so a JSON-only consumer can
   apply the rule without ever holding a live `Session`.

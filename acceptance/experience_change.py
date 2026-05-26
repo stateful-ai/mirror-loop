@@ -69,11 +69,23 @@ from game.session import LoopRecord, Session
 #: Below it the seam is not doing the thing the type promises
 #: (``docs/ADAPTATION.md`` §1) — there is no experience to compare.
 #:
-#: For the canonical world (five-loop spine, intake + four branch-or-reorder
-#: slots) a strongly-leaning player crosses the notice threshold by loop ~3 and
-#: triggers at least branch selection on the remaining slots; a band centred on
-#: that floor (>= one-fifth of paired loops differ) is a defensible "the seam
-#: actually fired" bar without depending on a specific lean.
+#: Derivation. The canonical world has a five-loop spine: intake (always neutral
+#: in both arms) plus four branch-or-reorder slots. Under the conservative-null
+#: population (``game.playtest.build_population`` with the locked lean sweep) the
+#: adaptive arm differs from the fixed arm whenever either (a) the Mirror's
+#: notice threshold has fired so ``branch_key`` flips off ``"default"``, or
+#: (b) the player has any predicted action so ``offered.choices`` is reordered
+#: predicted-first. Either firing on even one of the four nudgeable slots gives
+#: a per-pair rate of 1/5 = 0.20. The observed null on the canonical population
+#: lands at ≈0.71 mean presentation divergence (≈0.49 framing, ≈0.59 order), so
+#: 0.20 is the conservative *minimum* the seam must clear to be doing anything
+#: at all — set well below the observed distribution, not at it, so the rule
+#: fails on a structurally-broken seam rather than on noise.
+#:
+#: This is the floor the authors are willing to be falsified by: a future
+#: change that drives mean presentation divergence below 0.20 falsifies the
+#: claim that the adaptation seam is producing a visibly different presentation
+#: at all, and the experience-change question becomes unanswerable on that run.
 PRESENTATION_DIVERGENCE_FLOOR = 0.20
 
 #: Minimum mean per-pair fraction of loops on which the player's actual choice
@@ -82,6 +94,9 @@ PRESENTATION_DIVERGENCE_FLOOR = 0.20
 #: arms); a nudgeable population pushes it above zero. So this threshold is
 #: precisely what separates "the adaptation altered presentation" from "the
 #: adaptation altered the player's experience," which is the falsifiable claim.
+#: 0.05 = at least one of every twenty paired loops shifts choice; below that
+#: the effect is indistinguishable from the conservative-null pin at zero and
+#: this rule reports FAIL rather than claim an experience change.
 BEHAVIORAL_DIVERGENCE_FLOOR = 0.05
 
 #: Minimum paired observations per player. A pair with fewer paired loops than
@@ -114,6 +129,14 @@ class LoopPresentation:
     is required to produce one of these. The list is the *operationalization*:
     these are the bytes that constitute the experience the adaptation either
     did or did not change.
+
+    The five field reads below are pinned by
+    :func:`acceptance.tests.test_experience_change.test_loop_presentation_reads_record_fields_directly`,
+    which drives a real session through the engine and asserts each
+    :class:`LoopPresentation` attribute equals the corresponding live
+    :class:`~game.session.LoopRecord` attribute — so if any field is ever
+    renamed, removed, or restructured, that test fails first and the
+    no-later-re-instrumentation claim is enforced rather than assumed.
 
     Fields:
 
