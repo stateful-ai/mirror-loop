@@ -417,3 +417,71 @@ def test_result_to_dict_is_json_serializable():
     assert payload["verdict"] in (VERDICT_PASS, VERDICT_FAIL, VERDICT_INCONCLUSIVE)
     assert payload["floors"]["presentation_divergence"] == PRESENTATION_DIVERGENCE_FLOOR
     assert payload["floors"]["behavior_divergence"] == BEHAVIORAL_DIVERGENCE_FLOOR
+
+
+# --- CLI: one-command end-to-end demonstration --------------------------------
+
+
+def test_cli_canonical_run_fails_on_behavior_floor(capsys):
+    from acceptance.experience_change import main
+
+    exit_code = main([])
+    out = capsys.readouterr().out
+    # The canonical conservative-null population: presentation clears, behavior
+    # pinned to zero -> FAIL by the behavior floor. Exit code 1 by the mapping.
+    assert exit_code == 1
+    assert VERDICT_FAIL in out
+    assert "conservative-null" in out
+
+
+def test_cli_nudgeable_population_passes(capsys):
+    from acceptance.experience_change import main
+
+    exit_code = main(["--suggestibility", "0.8"])
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert VERDICT_PASS in out
+
+
+def test_cli_inconclusive_exit_code_is_3(capsys):
+    from acceptance.experience_change import main
+
+    # n below MIN_PAIRED_SESSIONS -> INCONCLUSIVE by the size rule.
+    exit_code = main(["--n", str(MIN_PAIRED_SESSIONS - 1)])
+    out = capsys.readouterr().out
+    assert exit_code == 3
+    assert VERDICT_INCONCLUSIVE in out
+
+
+def test_cli_json_output_is_parsable(capsys):
+    from acceptance.experience_change import main
+
+    main(["--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["verdict"] in (VERDICT_PASS, VERDICT_FAIL, VERDICT_INCONCLUSIVE)
+    assert payload["floors"]["presentation_divergence"] == PRESENTATION_DIVERGENCE_FLOOR
+
+
+def test_cli_from_logs_path_scores_without_running_engine(tmp_path, capsys):
+    # Write a population of paired logs through the existing engine, then re-
+    # score them from disk: the rule must compute end-to-end from the
+    # serialized projection alone (the no-re-instrumentation contract from
+    # disk).
+    from acceptance.experience_change import main
+    from game.playtest import build_population
+
+    pop = build_population(MIN_PAIRED_SESSIONS, base_seed=BASE_SEED, suggestibility=0.8)
+    log_paths = []
+    for player in pop:
+        adaptive = play_session(player.policy(), variant=ADAPTIVE)
+        baseline = play_session(player.policy(), variant=FIXED)
+        path = tmp_path / f"{player.player_id}.json"
+        write_pair_log(path, player_id=player.player_id, adaptive=adaptive, baseline=baseline)
+        log_paths.append(str(path))
+
+    exit_code = main(["--from-logs", *log_paths, "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    # Nudgeable population through disk -> PASS, same as via the engine.
+    assert exit_code == 0
+    assert payload["verdict"] == VERDICT_PASS
+    assert payload["n_pairs"] == MIN_PAIRED_SESSIONS

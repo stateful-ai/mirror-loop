@@ -158,6 +158,21 @@ engine **already produces today**. Pinned by the test suite
   population clears both — the rule reaches PASS through real paired sessions
   ([`docs/game_design.md`](./game_design.md) §4.6).
 
+### 4.1 Running the rule
+
+End-to-end on the canonical paired population, from the engine's existing log:
+
+```
+python -m acceptance.experience_change                     # canonical null -> FAIL (behavior floor)
+python -m acceptance.experience_change --suggestibility 0.8   # nudgeable population -> PASS
+python -m acceptance.experience_change --from-logs pair_*.json --json
+```
+
+Exit codes mirror [`game.playtest`](../game/playtest.py): `0` PASS, `1` FAIL,
+`3` INCONCLUSIVE (`2` is argparse usage). `--from-logs` accepts the projection
+written by `write_pair_log`, so a JSON-only consumer scores without re-running
+the engine.
+
 ## 5. Relation to the locked metric
 
 The locked Beats-Baseline Prediction Test ([`docs/THESIS.md`](./THESIS.md) §2)

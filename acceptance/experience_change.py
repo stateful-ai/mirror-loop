@@ -46,7 +46,9 @@ the existing replay log already produces.
 
 from __future__ import annotations
 
+import argparse
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -556,6 +558,99 @@ def write_pair_log(
     )
 
 
+# --- CLI: run the rule end-to-end against the canonical paired population ----
+#
+# The rule is computable from the engine's existing logs. This entry point
+# proves it: one command runs the canonical paired population through both arms
+# of :mod:`game.playtest`, reduces every paired session through
+# :func:`session_presentations` (no new instrumentation), and prints the
+# pre-registered verdict. It also accepts paired logs written by
+# :func:`write_pair_log`, so a JSON-only consumer can score without re-running
+# the engine. Exit codes mirror :mod:`game.playtest`: ``0`` PASS, ``1`` FAIL,
+# ``3`` INCONCLUSIVE (``2`` is argparse usage).
+
+
+def _run_canonical(n: int, suggestibility: float) -> ExperienceChangeResult:
+    # Imported locally so the module's core (definition + pure rule) does not
+    # require the playtest harness — JSON-only consumers can skip it entirely.
+    from game.playtest import BASE_SEED, build_population, run_arm
+
+    pop = build_population(n, base_seed=BASE_SEED, suggestibility=suggestibility)
+    adaptive = run_arm("adaptive", pop, seed=BASE_SEED)
+    baseline = run_arm("fixed", pop, seed=BASE_SEED)
+    triples = list(zip([p.player_id for p in pop], adaptive, baseline))
+    return evaluate_paired_sessions(triples)
+
+
+def _run_from_logs(paths: Sequence[str]) -> ExperienceChangeResult:
+    observables = []
+    for path in paths:
+        player_id, adaptive, baseline = load_pair_log(path)
+        observables.append(
+            pair_observables(adaptive, baseline, player_id=player_id)
+        )
+    return decide(observables)
+
+
+_EXIT_CODE = {
+    VERDICT_PASS: 0,
+    VERDICT_FAIL: 1,
+    VERDICT_INCONCLUSIVE: 3,
+}
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m acceptance.experience_change",
+        description=(
+            "Apply the pre-registered Experience-Change A/B rule "
+            "(docs/ACCEPTANCE_OBSERVABLES.md) to a paired population, "
+            "from the engine's existing replay log."
+        ),
+    )
+    parser.add_argument(
+        "--n",
+        type=int,
+        default=MIN_PAIRED_SESSIONS,
+        help=f"sessions per arm (default: {MIN_PAIRED_SESSIONS})",
+    )
+    parser.add_argument(
+        "--suggestibility",
+        type=float,
+        default=0.0,
+        help=(
+            "population suggestibility (0.0 = conservative null; positive = "
+            "nudgeable). Default 0.0."
+        ),
+    )
+    parser.add_argument(
+        "--from-logs",
+        nargs="+",
+        metavar="PATH",
+        help=(
+            "score from pre-saved paired logs (write_pair_log JSON) instead "
+            "of re-running the engine"
+        ),
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the result as JSON instead of the rendered text",
+    )
+    args = parser.parse_args(list(sys.argv[1:] if argv is None else argv))
+
+    if args.from_logs:
+        result = _run_from_logs(args.from_logs)
+    else:
+        result = _run_canonical(args.n, args.suggestibility)
+
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2, sort_keys=True))
+    else:
+        print(result.render())
+    return _EXIT_CODE[result.verdict]
+
+
 __all__ = [
     "BEHAVIORAL_DIVERGENCE_FLOOR",
     "ExperienceChangeResult",
@@ -572,6 +667,7 @@ __all__ = [
     "evaluate_paired_sessions",
     "framing_diverged",
     "load_pair_log",
+    "main",
     "order_diverged",
     "pair_observables",
     "presentation_diverged",
@@ -579,3 +675,7 @@ __all__ = [
     "session_presentations",
     "write_pair_log",
 ]
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
