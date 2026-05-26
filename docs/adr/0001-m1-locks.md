@@ -57,9 +57,11 @@ new one). A change that breaks any reopen trigger is a new ADR, not an edit.
 
 ### 1. Beat-2 placement
 
-**Decision.** The one templated flavor swap fires at **Act 1 Beat 2** and
-nowhere else. It re-orders and reframes the authored options at that beat;
-it never adds, removes, or rewrites a door
+#### Decision
+
+The one templated flavor swap fires at **Act 1 Beat 2** and nowhere else.
+It re-orders and reframes the authored options at that beat; it never
+adds, removes, or rewrites a door
 ([ADAPTATION §1](../ADAPTATION.md);
 [`../core_loop_feel.md`](../core_loop_feel.md) §5;
 [`game.flavor.M1_ADAPTATION_BEAT_SLOT`](../../game/flavor.py)).
@@ -71,7 +73,8 @@ still credibly cite the swap as the thing it "noticed." Any earlier and the
 swap fires on a near-empty tally; any later and Reflection loses its
 in-fiction evidence.
 
-**Alternative considered — adaptation at every beat (cadence-adaptation).**
+#### Alternative considered — adaptation at every beat (cadence-adaptation)
+
 Rejected: smears the signal. When a session fails the prediction gate, the
 diagnosis must be attributable to a specific swap; a swap-per-beat regime
 turns every failure into a multi-suspect investigation and bloats the
@@ -80,17 +83,21 @@ parity-test combinatorics for no gate-relevant benefit. The founder brief's
 ([brief "Risks"](../mirror_loop_m1_founder_brief.md)); the mitigation is
 loud flavor *at* Beat 2, not more swap sites.
 
-**Reopen trigger.** A measured playtest result in which the Beat-2 swap is
-demonstrably illegible at Reflection (Reflection cannot cite the swap in
-its in-fiction evidence quote in ≥ 50% of sessions in a sample of ≥ 50), or
-a thesis revision that requires multi-site adaptation to test. Either
-forces a new ADR; neither is editable into this one.
+#### Reopen trigger
+
+A measured playtest result in which the Beat-2 swap is demonstrably
+illegible at Reflection (Reflection cannot cite the swap in its in-fiction
+evidence quote in ≥ 50% of sessions in a sample of ≥ 50), or a thesis
+revision that requires multi-site adaptation to test. Either forces a new
+ADR; neither is editable into this one.
 
 ### 2. Single-forced Recalibration cadence
 
-**Decision.** Reflection fires **once per session, forced, at
-Recalibration**. The "I see you" moment reads as observation, not
-accusation: one claim sentence, one in-fiction evidence quote
+#### Decision
+
+Reflection fires **once per session, forced, at Recalibration**. The "I see
+you" moment reads as observation, not accusation: one claim sentence, one
+in-fiction evidence quote
 ([`../core_loop_feel.md`](../core_loop_feel.md) §4;
 [CORE_LOOP §3](../CORE_LOOP.md)). No additional Reflection fires on any
 other beat in M1.
@@ -103,29 +110,34 @@ legibility moment a guaranteed observable for the prediction gate — every
 session in both arms produces exactly one Reflection event in the same
 structural slot, so the parity test is straightforward.
 
-**Alternative considered — Reflection on a cadence (every N beats, or
-confidence-gated).** Rejected: cadence-Reflection is the failure mode
+#### Alternative considered — Reflection on a cadence (every N beats, or confidence-gated)
+
+Rejected: cadence-Reflection is the failure mode
 [`core_loop_feel.md`](../core_loop_feel.md) §5 names ("a Reflection that
 fires twice for the same pattern"). Nagging breaks legibility
 ([CORE_LOOP §3](../CORE_LOOP.md)); a confidence gate makes the event
 optional and so unobservable as a parity feature. One forced beat is the
 minimum that makes the legibility moment real without becoming nag.
 
-**Reopen trigger.** Either (a) a playtest in which the single Reflection
-lands reliably as "observation" *and* a v1 question genuinely requires a
-second Reflection moment to answer (i.e. M1 is closed and M2 has begun); or
-(b) a playtest in which the forced Reflection lands as "accusation" in
-≥ 30% of sessions, in which case the response is *not* to add more
-Reflections but to revise the render — and that revision lives in a
-superseding ADR because it would change what this lock means.
+#### Reopen trigger
+
+Either (a) a playtest in which the single Reflection lands reliably as
+"observation" *and* a v1 question genuinely requires a second Reflection
+moment to answer (i.e. M1 is closed and M2 has begun); or (b) a playtest in
+which the forced Reflection lands as "accusation" in ≥ 30% of sessions, in
+which case the response is *not* to add more Reflections but to revise the
+render — and that revision lives in a superseding ADR because it would
+change what this lock means.
 
 ### 3. Latency-spike scope
 
-**Decision.** The latency spike is **in-scope for M1, time-boxed to one
-engineer-day, non-gating; output is a single number** (median + p95 per
-beat against a 150 ms budget) and a **written pre-generate / cache plan
-kept on file** for the case where a future change pushes the loop over
-budget ([founder brief "Locked" + DoD #8 + "Risks"](../mirror_loop_m1_founder_brief.md);
+#### Decision
+
+The latency spike is **in-scope for M1, time-boxed to one engineer-day,
+non-gating; output is a single number** (median + p95 per beat against a
+150 ms budget) and a **written pre-generate / cache plan kept on file** for
+the case where a future change pushes the loop over budget
+([founder brief "Locked" + DoD #8 + "Risks"](../mirror_loop_m1_founder_brief.md);
 implemented in [`../latency_report_m1.md`](../latency_report_m1.md) §3, §5;
 harness in [`latency/`](../../latency/)).
 
@@ -142,22 +154,25 @@ pre-generate / cache plan already written in
 [`../latency_report_m1.md`](../latency_report_m1.md) §5, so the response is
 pre-decided rather than improvised.
 
-**Alternative considered — wire latency as a third branch-protected CI
-gate** (alongside byte-identity replay and baseline parity). Rejected:
-wall-clock latency is inherently non-deterministic and machine-dependent;
-a percentile-based gate would either be loose enough to pass on noise or
+#### Alternative considered — wire latency as a third branch-protected CI gate
+
+(alongside byte-identity replay and baseline parity). Rejected: wall-clock
+latency is inherently non-deterministic and machine-dependent; a
+percentile-based gate would either be loose enough to pass on noise or
 tight enough to flake on noise, with no setting that is honestly both.
 Replay byte-identity already covers the *deterministic* part of "the loop
 behaves the same way every time"; latency is the *jittered* part and is
 better answered by a measured floor and a pre-decided response than by a
 gate that can lie in either direction.
 
-**Reopen trigger.** Any of: (a) a re-run of `python -m latency` in which
-p95 exceeds 150 ms on a maintainer-class machine (forces the pre-generate /
-cache plan in [`../latency_report_m1.md`](../latency_report_m1.md) §5 to be
-enacted, in priority order, and the result re-recorded); (b) an LLM or
-other non-templated path entering the per-beat critical section (changes
-the floor that this spike measured, so the number is no longer the right
+#### Reopen trigger
+
+Any of: (a) a re-run of `python -m latency` in which p95 exceeds 150 ms on
+a maintainer-class machine (forces the pre-generate / cache plan in
+[`../latency_report_m1.md`](../latency_report_m1.md) §5 to be enacted, in
+priority order, and the result re-recorded); (b) an LLM or other
+non-templated path entering the per-beat critical section (changes the
+floor that this spike measured, so the number is no longer the right
 number — cross-references the NO-GO in
 [`../LLM_COST_LATENCY.md`](../LLM_COST_LATENCY.md) §4); (c) a target
 platform whose templated floor is materially worse than the maintainer's
