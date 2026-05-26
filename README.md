@@ -4,6 +4,17 @@ A local-first adaptive narrative game prototype where the player enters a dystop
 
 The project explores a game structure where a stable core engine is paired with dynamic content-generation agents. NPCs respond in free-form text, designer agents prepare future branches ahead of the player, and a player-model layer learns how the player behaves over time.
 
+## Try it
+
+A founder on a clean checkout reaches the **Reflection beat** in under five minutes — Python 3.10+, stdlib-only, no install:
+
+```bash
+python -m game                  # play the adaptive run
+python -m game --variant fixed  # the baseline arm — UX-identical minus the adaptation
+```
+
+Pick `1` (the kindness option) three loops in a row. On **loop 3 — Recalibration — the Reflection beat fires**: one sentence of claim, `Mirror noticed: you chose kindness in 3 of 3 moments so far.`, followed by one sentence of in-fiction evidence quoted verbatim from the three choices you just made. The Mirror announces each pattern once and reads as **observation, not accusation** ([`docs/core_loop_feel.md`](docs/core_loop_feel.md) §4). On loop 4 the adaptive run visibly re-orders the next scene so the predicted choice leads (`(the Mirror had moved 'c_wait' to the top — it expected that choice)`); the baseline does not. Both runs finish the five-loop spine and end with the Mirror's closing readout.
+
 ## Core Premise
 
 The game begins in a utopian-feeling research lab. The player has volunteered for an experimental personalized virtual experience. They complete a questionnaire describing what kind of experience they want: tone, challenge level, preferred problem-solving style, emotional boundaries, and genre preferences.
