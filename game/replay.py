@@ -39,6 +39,7 @@ Run it::
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from dataclasses import dataclass
@@ -56,6 +57,28 @@ from .world import DEFAULT_WORLD, Slot, World, get_world
 #: (or an old persisted snapshot) fails loudly instead of comparing apples to
 #: oranges.
 SCHEMA_VERSION = 1
+
+#: Bump when the canonical JSONL spec changes incompatibly. The spec is:
+#:
+#: * one JSON object per line, encoded by :func:`canonical_dumps` —
+#:   ``sort_keys=True`` (so the bytes depend on the field *set*, not insertion
+#:   order), compact ``(",", ":")`` separators, and ``allow_nan=False`` (NaN /
+#:   Infinity have no canonical JSON form and so are refused at serialization
+#:   rather than silently emitted as non-roundtripping tokens),
+#: * every record carries a monotonic ``event_seq`` (the logical clock — 0 for
+#:   the run header, then one increment per record, ending at the trailer) and
+#:   a content-addressable ``event_id`` (SHA-256 of the rest of the canonical
+#:   record, truncated; identical ``(seed, input_log)`` runs produce identical
+#:   ``event_id``s by construction, so a same-seed regression in *any* field is
+#:   localized to the line whose id moved),
+#: * no wall-clock fields — the AST scan in :mod:`game.tests.test_replay`
+#:   forbids ``time``/``datetime``/``secrets``/``uuid`` in the runtime
+#:   packages, so a future contributor cannot smuggle one in.
+#:
+#: This is bumped independently of :data:`SCHEMA_VERSION`: the JSONL spec and
+#: the JSON snapshot shape are two different serializations of the same run, and
+#: each is versioned against its own consumers.
+JSONL_SPEC_VERSION = 1
 
 #: The canonical seed for the byte-identity gate (``m1_synthesis`` "seed 42").
 DEFAULT_SEED = 42
@@ -90,6 +113,68 @@ GOLDEN_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "baseline_seed42
 M1_CANONICAL_FIXTURE = (
     Path(__file__).resolve().parent.parent / "fixtures" / "m1_canonical.jsonl"
 )
+
+
+# --- Canonical JSONL encoding -------------------------------------------------
+# These three primitives implement the JSONL_SPEC_VERSION contract above. They
+# are deliberately tiny and pure — every property the byte-identity gate cares
+# about is a property of `canonical_dumps`, `_event_id_for`, and
+# `_stamp_clock_and_id`, not of the records that flow through them.
+
+
+def canonical_dumps(payload: dict) -> str:
+    """Serialize ``payload`` to canonical JSON bytes for the JSONL spec.
+
+    Three knobs, pinned, each closing a way the bytes could drift between two
+    same-seed runs:
+
+    * ``sort_keys=True`` — output is keyed by the field *set*, not the dict's
+      insertion order. Two callers that build the same record in different
+      orders (or under a different Python build's dict-iteration order) emit
+      identical bytes.
+    * compact ``(",", ":")`` separators — no incidental whitespace; each line
+      stays one self-contained, diff-friendly record.
+    * ``allow_nan=False`` — NaN/Infinity have no canonical JSON encoding and
+      are not finite; if one ever leaked into a record this raises rather
+      than emitting a JS-only ``NaN``/``Infinity`` token that no roundtrip
+      reader is required to accept. Finite floats roundtrip through Python's
+      shortest-repr serializer, which is platform-independent.
+    """
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def _event_id_for(payload: dict) -> str:
+    """Deterministic content-addressable id for one JSONL record.
+
+    SHA-256 of the record's canonical bytes minus the ``event_id`` field
+    itself (which would otherwise be self-referential), truncated to 16 hex
+    chars (64 bits — collision-resistant for the M1 record-count regime, and
+    short enough that the id does not dominate the line).
+
+    Two records with the same canonical body produce the same id. So an
+    adaptive log stripped of its provenance and a fixed log on the same
+    ``(seed, input_log)`` carry identical ids per line (the parity property
+    :func:`strip_adaptation` relies on).
+    """
+    body = canonical_dumps({k: v for k, v in payload.items() if k != "event_id"})
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
+
+
+def _stamp_clock_and_id(records: list[dict]) -> list[dict]:
+    """Stamp each record with its logical clock and content-addressable id.
+
+    ``event_seq`` is the monotonic 0-based position in the stream — the
+    logical clock the founder brief asks for. Including it in the payload
+    means the content hash (``event_id``) also captures position, so two
+    records that share a body but sit at different positions still get
+    distinct ids.
+    """
+    stamped: list[dict] = []
+    for seq, record in enumerate(records):
+        payload = {**record, "event_seq": seq}
+        payload["event_id"] = _event_id_for(payload)
+        stamped.append(payload)
+    return stamped
 
 
 @dataclass(frozen=True)
@@ -147,11 +232,27 @@ class RunResult:
         slot (the same data :meth:`snapshot` carries, flattened with a ``type``
         discriminator), and a ``final_state`` trailer holding the resulting
         player model.
+
+        Every record is stamped with two determinism-load-bearing fields, per
+        the canonical JSONL spec (:data:`JSONL_SPEC_VERSION`):
+
+        * ``event_seq`` — the logical clock, 0..N monotonic per record, so a
+          replay reader has a record-position handle that does not depend on
+          line numbering or stream boundaries.
+        * ``event_id`` — a content hash of the rest of the record, so two
+          same-seed runs produce per-line-identical ids and a drift in any
+          single field is localized to the one line whose id moved.
         """
-        records: list[dict] = [
+        raw: list[dict] = [
             {
                 "type": "run",
-                "schema_version": SCHEMA_VERSION,
+                # Stamped as `jsonl_spec_version` (not `schema_version`) so the
+                # wire byte distinguishes this from the JSON snapshot's
+                # `schema_version`: two independently versioned serializations
+                # of the same run must not name-collide on the wire, or a
+                # consumer reading the JSONL cannot tell which constant a
+                # mismatched version refers to.
+                "jsonl_spec_version": JSONL_SPEC_VERSION,
                 "seed": self.seed,
                 "variant": self.variant,
                 "world": self.world_name,
@@ -159,11 +260,11 @@ class RunResult:
             }
         ]
         for loop in self._loop_dicts():
-            records.append({"type": "loop", **loop})
-        records.append(
+            raw.append({"type": "loop", **loop})
+        raw.append(
             {"type": "final_state", **_final_state_snapshot(self.session.final_state)}
         )
-        return records
+        return _stamp_clock_and_id(raw)
 
     def _loop_dicts(self) -> list[dict]:
         """The per-loop snapshot dicts, with adaptation provenance threaded in.
@@ -198,10 +299,7 @@ class RunResult:
         whitespace between tokens) so each line is one self-contained record and
         the file is friendly to streaming readers.
         """
-        lines = [
-            json.dumps(record, sort_keys=True, separators=(",", ":"))
-            for record in self.jsonl_records()
-        ]
+        lines = [canonical_dumps(record) for record in self.jsonl_records()]
         return "\n".join(lines) + "\n"
 
 
@@ -328,7 +426,14 @@ def strip_adaptation(jsonl_text: str) -> str:
                 record["branch_key"] = baseline["branch_key"]
                 record["offered_order"] = list(baseline["offered_order"])
                 record["reordered"] = baseline["reordered"]
-        out_lines.append(json.dumps(record, sort_keys=True, separators=(",", ":")))
+        # The event id is a content hash of the rest of the record, so any
+        # mutation above invalidates the stored value; recompute it so the
+        # projected line stays self-consistent (and byte-identical to the
+        # fixed-baseline arm's line, which is what makes the parity gate
+        # mechanical).
+        if "event_id" in record:
+            record["event_id"] = _event_id_for(record)
+        out_lines.append(canonical_dumps(record))
     return "\n".join(out_lines) + "\n"
 
 

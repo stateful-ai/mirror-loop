@@ -102,14 +102,98 @@ beat is allowed to render from.
 Each schema carries an independent version stamped into its serialized form, and a
 load **refuses** an unknown version rather than silently mis-restoring:
 
-| Schema | Constant | Stamped on |
+| Schema | Constant | Stamped on (wire field) |
 |--------|----------|-----------|
-| Event / MirrorState | `mirror.schema.SCHEMA_VERSION` (+ `schema_fingerprint()`) | `EventLog` |
-| WorldState | `game.worldstate.WORLDSTATE_SCHEMA_VERSION` | `WorldState.to_dict` |
-| Adaptation | `game.adaptation.ADAPTATION_SCHEMA_VERSION` | `AdaptationLog.to_dict` |
+| Event / MirrorState | `mirror.schema.SCHEMA_VERSION` (+ `schema_fingerprint()`) | `EventLog` (`schema_version`) |
+| WorldState | `game.worldstate.WORLDSTATE_SCHEMA_VERSION` | `WorldState.to_dict` (`schema_version`) |
+| Adaptation | `game.adaptation.ADAPTATION_SCHEMA_VERSION` | `AdaptationLog.to_dict` (`schema_version`) |
+| Canonical JSONL stream | `game.replay.JSONL_SPEC_VERSION` | the `run` header in `RunResult.to_jsonl` (`jsonl_spec_version`) |
+
+The JSONL stream uses a distinct wire-field name (`jsonl_spec_version`, not
+`schema_version`) so the bytes a consumer reads disambiguate which constant a
+mismatched version refers to — the JSON snapshot also carries a `schema_version`
+on the wire, and the two are independently versioned (see §6).
 
 Bump a version on **any incompatible change** to that schema's serialized shape (a
 new/removed/renamed field, a changed enum value, a changed snapshot shape). The
 Mirror schema additionally carries a structural *fingerprint*, so a schema that
 drifts **without** a version bump is still caught at reduce time — the one way a
 "deterministic recompute" could silently disagree with the log it replays.
+
+---
+
+## 6. Canonical JSONL spec — the seeded byte-identity contract
+
+The M1 founder brief locks the runtime spine as *"events (append-only JSONL) →
+reducer → MirrorState → render"*. `game.replay.RunResult.to_jsonl` is that
+spine's canonical serialization, and `fixtures/m1_canonical.jsonl` is the
+committed byte-identity gate it replays against. The contract three properties
+hold over:
+
+1. **Same-seed byte-identity.** Two runs of the same `(seed, input_log,
+   variant, world)` — in any process, under any `PYTHONHASHSEED` — produce
+   byte-identical JSONL.
+2. **No wall-clock in the JSONL.** Recorded by what the spec deliberately
+   *omits* (no timestamps), and enforced upstream by the AST scan in
+   `game/tests/test_replay.py::test_runtime_packages_have_no_clock_or_unsynced_randomness`
+   that forbids `time`/`datetime`/`secrets`/`uuid` from the runtime packages.
+3. **Insertion-order perturbation leaves canonical bytes unchanged.** The
+   serializer is `sort_keys=True` so the bytes depend on the field *set*,
+   not the dict's insertion order — a Python build whose dict iteration
+   order shifts (or a contributor who rebuilds a record with fields in a
+   different order) cannot move the bytes.
+
+Three pinned mechanisms make those properties testable per-line, not only at
+the whole-file level:
+
+- **`canonical_dumps(record)`** is the only encoder allowed on this spine.
+  It pins `sort_keys=True`, compact `(",", ":")` separators, and
+  `allow_nan=False` (NaN/Infinity have no canonical JSON encoding and would
+  silently emit non-roundtripping JS-only tokens; the encoder raises
+  instead). Finite floats roundtrip through Python's shortest-repr, which
+  is platform-independent, so a future field carrying a confidence value
+  stays byte-identical across hosts.
+
+- **`event_seq`** — a monotonic 0-based logical clock, one increment per
+  record across the whole stream (header → loops → trailer). It is the
+  position handle a replay reader can use without depending on line
+  numbering or stream boundaries, and is the "no wall-clock" property
+  expressed as a positive obligation: there *is* a clock, it just isn't the
+  wall.
+
+- **`event_id`** — a content-addressable hash (SHA-256 truncated to 16 hex
+  chars) of the rest of the record's canonical bytes (the record minus
+  `event_id` itself). Two runs of the same inputs produce per-line-identical
+  ids; a drift in any single field is localized to the one line whose id
+  moved. After `strip_adaptation` reverts an adaptive log's mutations, the
+  stripped record's bytes equal the fixed-baseline arm's bytes, so its
+  recomputed `event_id` matches too — which is what makes the structural
+  parity gate mechanical on a per-line basis.
+
+The `JSONL_SPEC_VERSION` constant is versioned independently of
+`SCHEMA_VERSION` (the JSON-snapshot version) because the two serializations
+serve different consumers — bumping one does not force the other.
+
+### Provenance — how this spec was authorized
+
+The three mechanisms above (deterministic `event_id`s, the `event_seq`
+logical clock, and pinned `sort_keys`/`allow_nan=False`/shortest-repr float
+serialization in `canonical_dumps`) were originally split across two PLAN
+tickets that were rejected as out-of-scope before the byte-identity gate was
+locked. The chief-of-staff build brief
+(`stream_20260524T184854Z_469b5e_build_20260525T182811Z`) surfaced this as
+**Decision 1: "Resolve the determinism conflict — either un-reject those
+PLAN tickets by folding them into the JSONL spec, or drop the byte-identity
+gate from the DoD."** The recommended resolution was *fold in*, since the
+gate is the milestone's whole point
+([ADR-0001 §"Context"](./adr/0001-m1-locks.md) — byte-identity replay is one
+of the two CI gates the M1 slice exists to run).
+
+Founder sign-off for that resolution is recorded as the approval of task
+`task_20260525T183310Z_08e282` ("Resolve byte-identity vs. PLAN-rejected
+determinism tickets …", `owner: founder`, approved
+`2026-05-25T21:49:15Z`). The three properties enumerated above are the
+acceptance criteria from that task verbatim, and each has a pinned test in
+`game/tests/test_replay.py` under the "JSONL spec" section — so the
+authorization, the spec, and the gate that enforces it are linked end-to-end
+rather than relying on the author's recollection.
