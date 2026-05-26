@@ -82,6 +82,14 @@ CANONICAL_INPUT_LOG: tuple[str, ...] = (
 #: The committed golden snapshot the CI gate replays against.
 GOLDEN_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "baseline_seed42.json"
 
+#: The committed JSONL fixture for the M1 canonical run — the same seeded run,
+#: serialized as the append-only event stream the founder brief locks in (one
+#: typed record per line: a ``run`` header, one ``loop`` record per slot, and a
+#: ``final_state`` trailer). The byte-identity gate replays against this file.
+M1_CANONICAL_FIXTURE = (
+    Path(__file__).resolve().parent.parent / "fixtures" / "m1_canonical.jsonl"
+)
+
 
 @dataclass(frozen=True)
 class RunResult:
@@ -124,6 +132,49 @@ class RunResult:
         :meth:`to_json` output is the gate (and what the golden fixture stores).
         """
         return json.dumps(self.snapshot(), indent=2, sort_keys=True) + "\n"
+
+    def jsonl_records(self) -> list[dict]:
+        """The run as a sequence of typed event records, one per JSONL line.
+
+        The M1 founder brief locks the spine as "events (append-only JSONL) →
+        reducer → MirrorState → render". This is the canonical event stream for
+        the seed-42 baseline run: a ``run`` header that names the (seed, input
+        log, variant, world) the run is replayable from, one ``loop`` record per
+        slot (the same data :meth:`snapshot` carries, flattened with a ``type``
+        discriminator), and a ``final_state`` trailer holding the resulting
+        player model.
+        """
+        records: list[dict] = [
+            {
+                "type": "run",
+                "schema_version": SCHEMA_VERSION,
+                "seed": self.seed,
+                "variant": self.variant,
+                "world": self.world_name,
+                "input_log": list(self.input_log),
+            }
+        ]
+        for record in self.session.records:
+            records.append({"type": "loop", **_loop_snapshot(record)})
+        records.append(
+            {"type": "final_state", **_final_state_snapshot(self.session.final_state)}
+        )
+        return records
+
+    def to_jsonl(self) -> str:
+        """The run as canonical JSONL — one event per line, sorted keys.
+
+        This is the unit of byte-identical state for ``fixtures/m1_canonical.jsonl``:
+        two runs of the same ``(seed, input log, variant, world)`` produce
+        identical bytes. The serialization is intentionally compact (no
+        whitespace between tokens) so each line is one self-contained record and
+        the file is friendly to streaming readers.
+        """
+        lines = [
+            json.dumps(record, sort_keys=True, separators=(",", ":"))
+            for record in self.jsonl_records()
+        ]
+        return "\n".join(lines) + "\n"
 
 
 def _loop_snapshot(record: LoopRecord) -> dict:
@@ -223,6 +274,24 @@ def write_golden() -> str:
     return text
 
 
+def load_m1_canonical() -> str:
+    """The committed JSONL fixture (the expected byte-identical event stream)."""
+    return M1_CANONICAL_FIXTURE.read_text(encoding="utf-8")
+
+
+def write_m1_canonical() -> str:
+    """(Re)generate ``fixtures/m1_canonical.jsonl`` from :func:`canonical_run`.
+
+    Run this deliberately (``python -m game.replay --write-m1-fixture``) after
+    an intended, reviewed change to the baseline; the committed file is the
+    byte-identity gate for the M1 canonical run.
+    """
+    text = canonical_run().to_jsonl()
+    M1_CANONICAL_FIXTURE.parent.mkdir(parents=True, exist_ok=True)
+    M1_CANONICAL_FIXTURE.write_text(text, encoding="utf-8")
+    return text
+
+
 # --- CLI ---------------------------------------------------------------------
 
 
@@ -252,6 +321,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="comma-separated choice-id input log (default: the canonical kind log)",
     )
+    parser.add_argument(
+        "--format",
+        choices=("json", "jsonl"),
+        default="json",
+        help="serialization for plain output (default 'json'; 'jsonl' emits the "
+        "M1 event-stream form).",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--check",
@@ -259,15 +335,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="replay the canonical run and verify it matches the golden fixture",
     )
     mode.add_argument(
+        "--check-m1",
+        action="store_true",
+        help="replay the canonical run and verify it matches "
+        f"{M1_CANONICAL_FIXTURE.name} (the JSONL event-stream fixture)",
+    )
+    mode.add_argument(
         "--write-fixture",
         action="store_true",
         help="(re)generate the golden fixture from the canonical run",
+    )
+    mode.add_argument(
+        "--write-m1-fixture",
+        action="store_true",
+        help=f"(re)generate {M1_CANONICAL_FIXTURE.name} from the canonical run",
     )
     args = parser.parse_args(argv)
 
     if args.write_fixture:
         write_golden()
         print(f"wrote golden fixture: {GOLDEN_FIXTURE}", file=sys.stderr)
+        return 0
+
+    if args.write_m1_fixture:
+        write_m1_canonical()
+        print(f"wrote M1 canonical fixture: {M1_CANONICAL_FIXTURE}", file=sys.stderr)
         return 0
 
     if args.check:
@@ -285,8 +377,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 1
 
+    if args.check_m1:
+        actual = canonical_run().to_jsonl()
+        expected = load_m1_canonical()
+        if actual == expected:
+            print(
+                "[PASS] canonical replay is byte-identical to "
+                f"{M1_CANONICAL_FIXTURE.name}"
+            )
+            return 0
+        print(
+            "[FAIL] canonical replay drifted from "
+            f"{M1_CANONICAL_FIXTURE.name}.\n"
+            "If this change was intended, regenerate it with "
+            "`python -m game.replay --write-m1-fixture`.",
+            file=sys.stderr,
+        )
+        return 1
+
     result = run(args.seed, _parse_input_log(args.input), variant=args.variant)
-    sys.stdout.write(result.to_json())
+    sys.stdout.write(result.to_jsonl() if args.format == "jsonl" else result.to_json())
     return 0
 
 
