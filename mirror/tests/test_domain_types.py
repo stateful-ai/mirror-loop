@@ -143,6 +143,31 @@ def test_no_consumer_redefines_a_canonical_domain_type():
     )
 
 
+def _imports_from(path: Path, module: str, name: str) -> bool:
+    """True iff ``path`` contains a top-level ``from <module> import ... <name> ...``."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.module == module:
+            for alias in node.names:
+                if alias.name == name:
+                    return True
+    return False
+
+
+def test_scene_loader_imports_scene_via_the_mirror_schema_index():
+    # The scene loader is the one "consumer role" named in the M1 acceptance
+    # criteria that is *not* a canonical owner — serialization, reducer, and
+    # reflection all live in modules that themselves define one of the four
+    # types (and so can't import via the lazy index without a circular import).
+    # Pinning the loader to ``from mirror.schema import Scene`` proves the
+    # index is the single discoverable path in practice, not just on paper.
+    loader = REPO_ROOT / "game" / "scenes" / "loader.py"
+    assert _imports_from(loader, "mirror.schema", "Scene"), (
+        f"{loader.relative_to(REPO_ROOT)} must import Scene from mirror.schema "
+        "(the frozen domain-types index), not from its canonical definition module"
+    )
+
+
 # --- 3. Per-type encode/decode round-trip ------------------------------------
 
 

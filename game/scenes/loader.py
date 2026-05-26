@@ -40,7 +40,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from loop.core import Choice, Scene
+from loop.core import Choice
+
+# Scene is one of the four frozen domain types — imported via the
+# ``mirror.schema`` index (``docs/SCHEMAS.md``) so the scene loader names the
+# canonical type by its single discoverable path rather than the module it
+# happens to be defined in. ``Choice`` is not a domain type and stays direct.
+from mirror.schema import Scene
 
 # The fields a choice block must declare, in any order, exactly once each.
 _CHOICE_FIELDS = frozenset({"tendency", "text", "evidence"})
