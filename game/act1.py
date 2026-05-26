@@ -109,8 +109,9 @@ def load_act1_world() -> World:
 
     Raises :class:`ValueError` if the spine lands outside
     ``[ACT1_MIN_LOOPS, ACT1_MAX_LOOPS]`` (an authored drift safeguard), if two
-    scenes share an id, or if a file's name disagrees with the scene id it
-    declares.
+    scenes share an id, if a file's name disagrees with the scene id it
+    declares, or if any scene fails to tag exactly one choice per v0 tendency
+    (the seeded policy's tendency->choice draw requires the map to be total).
     """
     paths = _act1_scene_paths()
     scenes = [load_scene(path) for path in paths]
@@ -126,6 +127,14 @@ def load_act1_world() -> World:
         if scene.id in seen:
             raise ValueError(
                 f"duplicate scene id {scene.id!r} in Act 1 spine"
+            )
+        tendencies = tuple(choice.tendency for choice in scene.choices)
+        if sorted(tendencies) != sorted(_TENDENCIES):
+            raise ValueError(
+                f"scene {scene.id!r} tags choices {tendencies!r}; every Act 1 "
+                f"scene must offer exactly one choice per v0 tendency "
+                f"({_TENDENCIES!r}) so the seeded policy's draw is always "
+                "realisable"
             )
         seen.add(scene.id)
         slots.append(Slot(key=scene.id, fixed=scene))
@@ -158,12 +167,14 @@ def seeded_policy(seed: int = DEFAULT_SEED) -> Policy:
         for choice in scene.choices:
             if choice.tendency == target:
                 return choice.id
-        # The Act 1 spine guarantees every scene tags one choice per tendency
-        # (asserted in test_act1.py), so the fall-through is unreachable in
-        # practice. We still return a real choice rather than raise so a
-        # future scene that drops a tendency degrades to "play the first
-        # choice" instead of crashing mid-walk.
-        return scene.choices[0].id
+        # load_act1_world enforces "one choice per tendency" at load time, so
+        # this is only reachable if the policy is driven against a non-Act-1
+        # scene. Fail loudly — a silent fallback here would mask exactly the
+        # kind of authoring drift the seeded walk is meant to detect.
+        raise ValueError(
+            f"scene {scene.id!r} has no choice tagged tendency {target!r}; "
+            "the seeded policy requires one choice per v0 tendency per scene"
+        )
 
     return pick
 

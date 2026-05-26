@@ -314,6 +314,24 @@ def test_unexpected_scene_file_in_directory_raises():
         intruder.unlink()
 
 
+def test_scene_missing_a_tendency_is_rejected_at_load(tmp_path, monkeypatch):
+    # The seeded policy draws a tendency per loop and looks up the matching
+    # choice. If an authored scene ever drops a tendency, the loader must
+    # refuse the world rather than let the policy silently degrade.
+    scratch = tmp_path / "act1"
+    scratch.mkdir()
+    for path in sorted(ACT1_DATA_DIR.glob("*.scene")):
+        (scratch / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+    # Rewrite one scene so two choices share a tendency (and one is missing).
+    target = scratch / "act1_06_optional_lore.scene"
+    text = target.read_text(encoding="utf-8")
+    target.write_text(text.replace("tendency: defiance", "tendency: kindness"), encoding="utf-8")
+
+    monkeypatch.setattr("game.act1.ACT1_DATA_DIR", scratch)
+    with pytest.raises(ValueError, match="one choice per v0 tendency"):
+        load_act1_world()
+
+
 def test_filename_must_match_scene_id(tmp_path, monkeypatch):
     # The "filename == scene id" invariant: if it ever drifts (an authoring
     # rename in one place but not the other), the world build fails loudly.
