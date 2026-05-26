@@ -1,19 +1,22 @@
-# ADR-0001 — M1 locks: mirror axis · Beat-2 adaptation · single-beat Reflection
+# ADR-0001 — M1 locks: Beat-2 placement · single-forced Recalibration cadence · latency-spike scope
 
 **Status:** Accepted · **Date:** 2026-05-26
-**Scope:** the three gameplay decisions that fix the shape of the M1 slice — the
-*one axis* the Mirror reads, the *one place* adaptation fires, and the *one
-moment* the Reflection beat plays. These predate this directory (they were
-locked in the [`mirror_loop_m1_founder_brief.md`](../mirror_loop_m1_founder_brief.md)
-"Locked" section); this ADR records them in the canonical location so the
-*why* survives the diff.
+**Scope:** the three M1 locks that fix *where* adaptation fires, *when* the
+Reflection beat plays, and *what* the latency spike is allowed to cost — i.e.
+the locks that, together with the runtime/platform decision in
+[ADR-0002](./0002-runtime-platform.md), make the Beats-Baseline Prediction
+Test runnable. Each lock is recorded below as **Decision · Alternative ·
+Reopen trigger** so a later contributor can tell, without re-deriving the
+argument, what would force this ADR to be superseded.
 **Grounded in:** the locked thesis ([`../THESIS.md`](../THESIS.md) §1–2);
 the locked M1 brief ([`../mirror_loop_m1_founder_brief.md`](../mirror_loop_m1_founder_brief.md)
-"Locked" + "Definition of Done").
+"Locked" + "Definition of Done" + "Risks").
 **Normative inputs (a change to any of these is a change to this ADR):**
 [`../core_loop_feel.md`](../core_loop_feel.md) (the 30s-beat feel-spec),
 [`../CORE_LOOP.md`](../CORE_LOOP.md) (the structural slice),
 [`../ADAPTATION.md`](../ADAPTATION.md) (the single adaptation type),
+[`../latency_report_m1.md`](../latency_report_m1.md) (the measured floor and
+the on-file pre-generate / cache plan),
 [`../GUARDRAILS.md`](../GUARDRAILS.md) (the safety boundary).
 
 ---
@@ -23,89 +26,164 @@ the locked M1 brief ([`../mirror_loop_m1_founder_brief.md`](../mirror_loop_m1_fo
 The M1 slice exists to run the **Beats-Baseline Prediction Test**
 ([THESIS §2](../THESIS.md)) — a blind A/B whose two CI gates are
 **byte-identity replay under seed 42** and **structural baseline≡adaptive
-parity**. Both gates are only meaningful if the *shape* of the adaptive arm is
-fixed: which axis is read, where the swap fires, and when the Reflection beat
-plays. Without those locked, every churn in the content layer reopens the gate
-question.
+parity**. Both gates are only meaningful if three things are fixed up front:
 
-Three converging M1 plans ([founder brief](../mirror_loop_m1_founder_brief.md)
-"Convergence") landed on the same three locks. This ADR is the canonical record.
+- **Where** the one adaptive swap happens (so the parity test knows where to
+  look and replay knows what bytes must match).
+- **When** the Reflection beat plays (so the legibility moment is a single
+  observable event, not a cadence).
+- **What budget** the templated path commits to — and what the project will
+  do if a measurement ever breaches it.
 
-## Decision
+Without those locked, every churn in the content layer reopens the gate
+question and every churn in the engine reopens the latency question. Three
+converging M1 plans ([founder brief](../mirror_loop_m1_founder_brief.md)
+"Convergence") landed on the same three answers; the founder brief's
+"Locked" section recorded them in passing, and the "Risks" section called
+out latency-spike scope-creep specifically. This ADR is the canonical record,
+in the form a later contributor can use to know when to come back.
 
-**For M1, the gameplay shape is fixed on three axes:**
+The Mirror axis itself (`caution ↔ aggression`) is upstream context for these
+locks — it is what the Beat-2 swap reads to choose a directive
+([ADAPTATION §1](../ADAPTATION.md)) — but it is a property of the M1 player
+model rather than a decision this ADR re-litigates. Locks below presume it.
 
-1. **One mirror axis — caution ↔ aggression.** The PlayerState is a single
-   tendency tally on this axis ([CORE_LOOP §1](../CORE_LOOP.md);
-   [ADAPTATION §1](../ADAPTATION.md)). The richer shipped tendencies (kindness /
-   control / defiance) and the ~15-feature player model
-   ([`../game_design.md`](../game_design.md) §6) are *later* layers that sit on
-   top without changing M1's shape.
-2. **One adaptation, at Act 1 Beat 2 — a templated flavor swap.** Adaptation is
-   tendency mirroring ([ADAPTATION §1](../ADAPTATION.md)) realized as exactly
-   one templated flavor swap at Act 1 Beat 2. It re-orders and reframes the
-   authored options; it never adds, removes, or rewrites a door
-   ([`../core_loop_feel.md`](../core_loop_feel.md) §5).
-3. **One Reflection — a single forced beat at Recalibration.** The "I see you"
-   moment fires *once* per session, at Recalibration, and reads as observation,
-   not accusation: one claim sentence, one in-fiction evidence quote
-   ([`../core_loop_feel.md`](../core_loop_feel.md) §4;
-   [CORE_LOOP §3](../CORE_LOOP.md)).
+## Decisions
 
-The 30-second player envelope, tone signature, and explicit feel-breakers that
-each beat must hit live in [`../core_loop_feel.md`](../core_loop_feel.md) and
-are normative for this ADR: a change to the feel-spec is a change to what these
-locks deliver.
+Each lock is stated as a single sentence, then expanded as **Alternative
+considered** (what was on the table that we rejected) and **Reopen trigger**
+(the concrete observation that would force this ADR to be superseded by a
+new one). A change that breaks any reopen trigger is a new ADR, not an edit.
 
-## Rationale
+### 1. Beat-2 placement
 
-1. **Gate-relevance.** Byte-identity replay and baseline-parity both presume a
-   *single* adaptation seam in a *known* place. Multiple swaps, multiple
-   Reflections, or a sliding axis would each force the parity test to grow
-   special cases — and the gate stops meaning what it says.
-2. **Smallest slice that can answer the thesis.** One axis, one swap, and one
-   Reflection are the minimum surface on which the Beats-Baseline Prediction
-   Test produces a verdict. Anything richer is post-M1 expansion and is held out
-   on purpose ([ADAPTATION §4 "explicitly held out"](../ADAPTATION.md)).
-3. **Reflection-once preserves the spell.** Nagging breaks legibility
-   ([CORE_LOOP §3](../CORE_LOOP.md);
-   [`../core_loop_feel.md`](../core_loop_feel.md) §5). One forced beat at
-   Recalibration is the load-bearing legibility moment; further Reflections are
-   a v1 question, not an M1 one.
-4. **Templated, not generated.** M1 has no LLM in the loop
-   ([ADR-0002](./0002-runtime-platform.md); [LLM_COST_LATENCY](../LLM_COST_LATENCY.md)).
-   The Beat-2 swap is a deterministic content selection over a flavor pack so
-   that replay stays byte-identical and the latency floor stays at the measured
-   ~150 ms ([`../latency_report_m1.md`](../latency_report_m1.md)).
+**Decision.** The one templated flavor swap fires at **Act 1 Beat 2** and
+nowhere else. It re-orders and reframes the authored options at that beat;
+it never adds, removes, or rewrites a door
+([ADAPTATION §1](../ADAPTATION.md);
+[`../core_loop_feel.md`](../core_loop_feel.md) §5;
+[`game.flavor.M1_ADAPTATION_BEAT_SLOT`](../../game/flavor.py)).
 
-## Alternatives considered
+**Why this beat.** Beat 2 is the earliest point at which the Mirror has
+observed enough player choice to read a tendency that is more signal than
+noise, and the latest point at which the Reflection at Recalibration can
+still credibly cite the swap as the thing it "noticed." Any earlier and the
+swap fires on a near-empty tally; any later and Reflection loses its
+in-fiction evidence.
 
-- **Two-axis mirror (e.g., caution↔aggression *and* kindness↔control) for M1.**
-  Rejected: doubles the adaptation surface and the parity-test combinatorics for
-  no gate-relevant benefit. Multi-axis lives in the shipped slice
-  ([`../game_design.md`](../game_design.md) §6); M1 is the *one-axis* proof.
-- **Adaptation at every beat.** Rejected: smears the signal — when a session
-  fails the prediction gate it must be diagnosable to a specific swap. A single
-  swap at a known beat keeps the gate legible.
-- **Reflection on a cadence (every N beats).** Rejected: cadence-Reflection is
-  the failure mode `core_loop_feel.md` §5 names ("a Reflection that fires twice
-  for the same pattern"). One forced beat at Recalibration is the minimum that
-  makes the legibility moment real without becoming nag.
+**Alternative considered — adaptation at every beat (cadence-adaptation).**
+Rejected: smears the signal. When a session fails the prediction gate, the
+diagnosis must be attributable to a specific swap; a swap-per-beat regime
+turns every failure into a multi-suspect investigation and bloats the
+parity-test combinatorics for no gate-relevant benefit. The founder brief's
+"Risks" list also called out that Beat-2 placement could be narratively flat
+([brief "Risks"](../mirror_loop_m1_founder_brief.md)); the mitigation is
+loud flavor *at* Beat 2, not more swap sites.
+
+**Reopen trigger.** A measured playtest result in which the Beat-2 swap is
+demonstrably illegible at Reflection (Reflection cannot cite the swap in
+its in-fiction evidence quote in ≥ 50% of sessions in a sample of ≥ 50), or
+a thesis revision that requires multi-site adaptation to test. Either
+forces a new ADR; neither is editable into this one.
+
+### 2. Single-forced Recalibration cadence
+
+**Decision.** Reflection fires **once per session, forced, at
+Recalibration**. The "I see you" moment reads as observation, not
+accusation: one claim sentence, one in-fiction evidence quote
+([`../core_loop_feel.md`](../core_loop_feel.md) §4;
+[CORE_LOOP §3](../CORE_LOOP.md)). No additional Reflection fires on any
+other beat in M1.
+
+**Why one, forced, at Recalibration.** Recalibration is the structural
+beat at which the Mirror's read of the player has the most evidence to draw
+on and the smallest remaining risk of being contradicted by later choices.
+Forcing it (rather than gating it on a confidence threshold) makes the
+legibility moment a guaranteed observable for the prediction gate — every
+session in both arms produces exactly one Reflection event in the same
+structural slot, so the parity test is straightforward.
+
+**Alternative considered — Reflection on a cadence (every N beats, or
+confidence-gated).** Rejected: cadence-Reflection is the failure mode
+[`core_loop_feel.md`](../core_loop_feel.md) §5 names ("a Reflection that
+fires twice for the same pattern"). Nagging breaks legibility
+([CORE_LOOP §3](../CORE_LOOP.md)); a confidence gate makes the event
+optional and so unobservable as a parity feature. One forced beat is the
+minimum that makes the legibility moment real without becoming nag.
+
+**Reopen trigger.** Either (a) a playtest in which the single Reflection
+lands reliably as "observation" *and* a v1 question genuinely requires a
+second Reflection moment to answer (i.e. M1 is closed and M2 has begun); or
+(b) a playtest in which the forced Reflection lands as "accusation" in
+≥ 30% of sessions, in which case the response is *not* to add more
+Reflections but to revise the render — and that revision lives in a
+superseding ADR because it would change what this lock means.
+
+### 3. Latency-spike scope
+
+**Decision.** The latency spike is **in-scope for M1, time-boxed to one
+engineer-day, non-gating; output is a single number** (median + p95 per
+beat against a 150 ms budget) and a **written pre-generate / cache plan
+kept on file** for the case where a future change pushes the loop over
+budget ([founder brief "Locked" + DoD #8 + "Risks"](../mirror_loop_m1_founder_brief.md);
+implemented in [`../latency_report_m1.md`](../latency_report_m1.md) §3, §5;
+harness in [`latency/`](../../latency/)).
+
+**Why a number, not a benchmark suite, not a CI gate.** The spike's job is
+to settle a risk, not to grow a regime. The risk is "we ship a templated
+loop and discover at integration time that it can't hit a felt-instant
+budget"; settling that needs one credible measurement against the shipped
+walk. Making it a CI gate would turn a one-time risk-check into a permanent
+flake source (wall-clock latency is jittered and machine-dependent); making
+it a benchmark suite would re-create the scope-creep the founder brief
+"Risks" entry explicitly mitigated against ("time-box one day; output is a
+number"). The fallback — *if* the budget is ever breached — is the
+pre-generate / cache plan already written in
+[`../latency_report_m1.md`](../latency_report_m1.md) §5, so the response is
+pre-decided rather than improvised.
+
+**Alternative considered — wire latency as a third branch-protected CI
+gate** (alongside byte-identity replay and baseline parity). Rejected:
+wall-clock latency is inherently non-deterministic and machine-dependent;
+a percentile-based gate would either be loose enough to pass on noise or
+tight enough to flake on noise, with no setting that is honestly both.
+Replay byte-identity already covers the *deterministic* part of "the loop
+behaves the same way every time"; latency is the *jittered* part and is
+better answered by a measured floor and a pre-decided response than by a
+gate that can lie in either direction.
+
+**Reopen trigger.** Any of: (a) a re-run of `python -m latency` in which
+p95 exceeds 150 ms on a maintainer-class machine (forces the pre-generate /
+cache plan in [`../latency_report_m1.md`](../latency_report_m1.md) §5 to be
+enacted, in priority order, and the result re-recorded); (b) an LLM or
+other non-templated path entering the per-beat critical section (changes
+the floor that this spike measured, so the number is no longer the right
+number — cross-references the NO-GO in
+[`../LLM_COST_LATENCY.md`](../LLM_COST_LATENCY.md) §4); (c) a target
+platform whose templated floor is materially worse than the maintainer's
+dev box (forces a re-measurement on that platform before M1 ships there).
 
 ## Consequences
 
-- The reducer, adaptation seam, and reflection renderer
+- The reducer, adaptation seam, reflection renderer, and latency harness
   ([founder brief module layout](../mirror_loop_m1_founder_brief.md))
-  collapse around a single axis, a single seam, and a single render — keeping
-  the simulation core pure ([ADR-0002 "Reversibility"](./0002-runtime-platform.md)).
-- The baseline arm is the adaptive arm with the seam in identity mode; the
-  parity test asserts that and nothing more.
-- A change that breaks any of the three locks (a second axis, a second
-  adaptation site, a second Reflection) supersedes this ADR rather than editing
-  it. Post-M1 expansion of the player model and adaptation surface
-  ([`../game_design.md`](../game_design.md) §6;
-  [ADAPTATION §4](../ADAPTATION.md)) is expected and will arrive as ADR-0003+.
+  collapse around a single swap site, a single Reflection render, and a
+  single measured floor — keeping the simulation core pure
+  ([ADR-0002 "Reversibility"](./0002-runtime-platform.md)) and the
+  measurement harness off the hot path
+  ([`../latency_report_m1.md`](../latency_report_m1.md) "Not wired into the
+  runtime").
+- The baseline arm is the adaptive arm with the Beat-2 seam in identity
+  mode; the parity test asserts that and nothing more.
+- The latency number is not load-bearing for the CI gates — the gates are
+  byte-identity replay and structural parity — but a regression in the
+  number is a reopen trigger for §3 above, in writing, with the response
+  pre-decided.
 - The feel-spec ([`../core_loop_feel.md`](../core_loop_feel.md)) is the
-  authoritative source for what each beat must *feel like* under these locks.
-  If a beat hits the structure but fails the feel, the bug is in the content,
-  not in this ADR.
+  authoritative source for what each beat must *feel like* under these
+  locks. If a beat hits the structure but fails the feel, the bug is in
+  the content, not in this ADR.
+- Post-M1 expansion of the adaptation surface, the Reflection cadence, and
+  the latency regime ([`../game_design.md`](../game_design.md) §6;
+  [ADAPTATION §4](../ADAPTATION.md)) is expected and will arrive as
+  ADR-0003+, each citing the specific reopen trigger above that fired.
