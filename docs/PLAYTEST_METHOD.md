@@ -9,6 +9,9 @@ population that stands in for human playtesters until they are in the loop.
 (`python -m game.playtest`).
 **Verified by:** [`game/tests/test_playtest.py`](../game/tests/test_playtest.py).
 **Results:** [`docs/PLAYTEST_RESULTS.md`](./PLAYTEST_RESULTS.md).
+**Participant disclosure (for the future human-playtest seam):**
+[`docs/PLAYTEST_README.md`](./PLAYTEST_README.md) — the simulated A/B captures
+nothing, but when a human plays, capture is local-only and consent-first.
 
 > This document is **pre-registered**: it fixes the decision rule *before* the
 > playtest is scored, per the company product principle that
