@@ -56,6 +56,7 @@ from mirror.intake import (
     seed_log as intake_seed_log,
     seed_state as intake_seed_state,
 )
+from mirror.reflection import render as render_reflection
 
 __all__ = [
     "MIRROR_SCHEMA",
@@ -88,4 +89,5 @@ __all__ = [
     "encode_intake",
     "intake_seed_log",
     "intake_seed_state",
+    "render_reflection",
 ]
