@@ -233,33 +233,12 @@ def seeded_input_log(seed: int = DEFAULT_SEED) -> tuple[str, ...]:
     """The exact input log :func:`seeded_policy` produces against the Act 1 spine.
 
     Convenience for tests and tooling that want the seeded walk's choice ids
-    without driving a full session through the engine. The result is one
-    choice id per slot, in spine order.
+    without driving a full session through the engine themselves. Implemented as
+    a projection of :func:`play_act1` onto its per-loop choice ids so the two
+    cannot drift: the per-loop fold lives in one place.
     """
-    world = load_act1_world()
-    policy = seeded_policy(seed)
-    state = PlayerState()
-    mirror = Mirror()
-    log: list[str] = []
-    for i, slot in enumerate(world.slots):
-        _declared, offered, _branch_key = offer_scene(ADAPTIVE, mirror, state, slot)
-        choice_id = policy(offered, state, i)
-        log.append(choice_id)
-        # Advance the engine the same way play_act1 does, so the offered scene
-        # the policy sees on the next loop reflects every prior choice — without
-        # this fold the seeded log would drift from a real run.
-        record = record_loop(
-            mirror,
-            state,
-            _declared,
-            offered,
-            _branch_key,
-            choice_id,
-            loop_index=i,
-            is_finale=(i == world.length - 1),
-        )
-        state = record.result.state
-    return tuple(log)
+    session = play_act1(policy=seeded_policy(seed))
+    return tuple(record.result.actual_action for record in session.records)
 
 
 #: First and last slot keys of the Act 1 spine, fixed by the brief
