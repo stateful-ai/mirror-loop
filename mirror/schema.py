@@ -19,10 +19,12 @@ This module serves two related jobs:
    versioned, serializable types the rest of the build reduces and records
    against: :class:`Event`, :class:`MirrorState`, :class:`Scene`, and
    :class:`Adaptation`. Each is **defined once**, in its canonical module, and
-   re-exported here as the single discoverable import path. The re-exports are
-   lazy (PEP 562 ``__getattr__``) because ``mirror`` sits at the bottom of the
-   dependency graph — ``loop`` and ``game`` depend on it, not the other way
-   round — so the index does not bind those modules at import time.
+   re-exported here as the single discoverable import path. The index lives
+   right below the imports (look for ``_DOMAIN_TYPES`` and ``__getattr__``);
+   the re-exports are lazy (PEP 562 ``__getattr__``) because ``mirror`` sits
+   at the bottom of the dependency graph — ``loop`` and ``game`` depend on
+   it, not the other way round — so the index does not bind those modules at
+   import time.
 
     python -m mirror   # prints the schema table + the coherence report
 """
@@ -33,6 +35,67 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from enum import Enum
+
+
+# --- The frozen domain-types index --------------------------------------------
+#
+# The M1 architecture (``docs/SCHEMAS.md``) freezes four versioned, serializable
+# types as the contract everything else reduces and records against:
+#
+#   * :class:`Event`          — what the player did (``mirror.log``).
+#                               A discriminated union of ``ChoiceObserved`` and
+#                               ``TurnAdvanced``; encode/decode via
+#                               ``event_to_dict`` / ``event_from_dict``.
+#   * :class:`MirrorState`    — the player model (``mirror.state``).
+#                               Pure reduction of the Event log; encode/decode
+#                               via :meth:`MirrorState.to_dict` /
+#                               :meth:`MirrorState.from_dict`.
+#   * :class:`Scene`          — the smallest authored unit (``loop.core``).
+#                               Encode/decode via the ``.scene`` text format in
+#                               :mod:`game.scenes` (``loads_scene`` /
+#                               ``dumps_scene``).
+#   * :class:`Adaptation`     — one content decision plus its provenance
+#                               (``game.adaptation``). Encode/decode via
+#                               :meth:`Adaptation.to_dict` /
+#                               :meth:`Adaptation.from_dict`.
+#
+# Each type is **defined once**, in the module named below, and re-exported
+# here as the canonical import path. ``mirror`` sits at the bottom of the
+# dependency graph (``loop``/``game`` depend on it, not the other way round),
+# so the re-exports use PEP 562 ``__getattr__`` to defer the inter-package
+# imports until access time — keeping ``mirror.schema`` itself import-cycle-free.
+#
+# All four types carry an independent version stamp (Event/MirrorState share
+# :data:`SCHEMA_VERSION` + :func:`schema_fingerprint`; Adaptation carries
+# ``ADAPTATION_SCHEMA_VERSION``); see ``docs/SCHEMAS.md`` §5 for the policy.
+
+_DOMAIN_TYPES = {
+    "Event": ("mirror.log", "MirrorEvent"),
+    "MirrorState": ("mirror.state", "MirrorState"),
+    "Scene": ("loop.core", "Scene"),
+    "Adaptation": ("game.adaptation", "Adaptation"),
+}
+
+
+def __getattr__(name: str):
+    """Lazy re-export of the canonical domain types — see :data:`_DOMAIN_TYPES`."""
+    binding = _DOMAIN_TYPES.get(name)
+    if binding is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    import importlib
+
+    module = importlib.import_module(binding[0])
+    value = getattr(module, binding[1])
+    globals()[name] = value  # cache: subsequent access is direct
+    return value
+
+
+def __dir__() -> list[str]:
+    """Make the lazy domain types discoverable via ``dir()`` and IDE completion."""
+    return sorted(set(globals()) | set(_DOMAIN_TYPES))
+
+
+# --- The static Mirror schema -------------------------------------------------
 
 
 class AttributeKind(Enum):
@@ -413,59 +476,5 @@ def assert_coherent() -> None:
 assert_coherent()
 
 
-# --- The frozen domain-types index --------------------------------------------
-#
-# The M1 architecture (``docs/SCHEMAS.md``) freezes four versioned, serializable
-# types as the contract everything else reduces and records against:
-#
-#   * :class:`Event`          — what the player did (``mirror.log``).
-#                               A discriminated union of ``ChoiceObserved`` and
-#                               ``TurnAdvanced``; encode/decode via
-#                               ``event_to_dict`` / ``event_from_dict``.
-#   * :class:`MirrorState`    — the player model (``mirror.state``).
-#                               Pure reduction of the Event log; encode/decode
-#                               via :meth:`MirrorState.to_dict` /
-#                               :meth:`MirrorState.from_dict`.
-#   * :class:`Scene`          — the smallest authored unit (``loop.core``).
-#                               Encode/decode via the ``.scene`` text format in
-#                               :mod:`game.scenes` (``loads_scene`` /
-#                               ``dumps_scene``).
-#   * :class:`Adaptation`     — one content decision plus its provenance
-#                               (``game.adaptation``). Encode/decode via
-#                               :meth:`Adaptation.to_dict` /
-#                               :meth:`Adaptation.from_dict`.
-#
-# Each type is **defined once**, in the module above, and re-exported here as
-# the canonical import path. ``mirror`` sits at the bottom of the dependency
-# graph (``loop``/``game`` depend on it, not the other way round), so the
-# re-exports use PEP 562 ``__getattr__`` to defer the inter-package imports
-# until access time — keeping ``mirror.schema`` itself import-cycle-free.
-#
-# All four types carry an independent version stamp (Event/MirrorState share
-# :data:`SCHEMA_VERSION` + :func:`schema_fingerprint`; Adaptation carries
-# ``ADAPTATION_SCHEMA_VERSION``); see ``docs/SCHEMAS.md`` §5 for the policy.
-
-_DOMAIN_TYPES = {
-    "Event": ("mirror.log", "MirrorEvent"),
-    "MirrorState": ("mirror.state", "MirrorState"),
-    "Scene": ("loop.core", "Scene"),
-    "Adaptation": ("game.adaptation", "Adaptation"),
-}
-
-
-def __getattr__(name: str):
-    """Lazy re-export of the canonical domain types — see :data:`_DOMAIN_TYPES`."""
-    binding = _DOMAIN_TYPES.get(name)
-    if binding is None:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    import importlib
-
-    module = importlib.import_module(binding[0])
-    value = getattr(module, binding[1])
-    globals()[name] = value  # cache: subsequent access is direct
-    return value
-
-
-def __dir__() -> list[str]:
-    """Make the lazy domain types discoverable via ``dir()`` and IDE completion."""
-    return sorted(set(globals()) | set(_DOMAIN_TYPES))
+# (The domain-types index lives at the top of this module, right after the
+# imports; see ``_DOMAIN_TYPES`` / ``__getattr__`` above.)
