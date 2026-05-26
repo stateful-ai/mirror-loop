@@ -263,3 +263,52 @@ def test_run_result_emits_real_run_result_instance():
     result = run(DEFAULT_SEED, CANONICAL_INPUT_LOG, variant=ADAPTIVE.name)
     assert isinstance(result, RunResult)
     assert result.world_name == DEFAULT_WORLD.name
+
+
+# --- baseline reconstruction soundness -----------------------------------------
+
+
+def test_baseline_offered_order_comes_from_default_branch_not_revealed_branch():
+    # Regression: an earlier draft read the baseline ``offered_order`` from the
+    # adaptive arm's ``record.declared`` — i.e. the choices the revealed branch
+    # offered. That happens to round-trip in the shipped world because every
+    # branch shares one choice-id spine, but it is unsound by construction: a
+    # world whose branches authored *different* choice IDs would project to a
+    # log carrying revealed-branch IDs under a ``"default"`` ``branch_key``,
+    # which is not what the fixed baseline would have logged.
+    #
+    # The contract this pins: for every tagged loop, the baseline view names
+    # the slot's *default* branch and carries that branch's choice-id order —
+    # read from the slot directly, not from the revealed scene.
+    snapshot = run(DEFAULT_SEED, CANONICAL_INPUT_LOG, variant=ADAPTIVE.name).snapshot()
+    world_slots = {slot.key: slot for slot in DEFAULT_WORLD.slots}
+    for loop in snapshot["loops"]:
+        prov = loop.get("provenance")
+        if prov is None:
+            continue
+        slot = world_slots[loop["scene_id"]]
+        baseline = prov["baseline"]
+        if slot.fixed is not None:
+            assert baseline["branch_key"] == "fixed"
+            expected_order = [c.id for c in slot.fixed.choices]
+        else:
+            assert baseline["branch_key"] == "default"
+            assert slot.variants is not None
+            expected_order = [c.id for c in slot.variants["default"].choices]
+        assert baseline["offered_order"] == expected_order, (
+            f"loop {loop['loop_index']} ({loop['scene_id']}): baseline "
+            f"offered_order={baseline['offered_order']} but the slot's "
+            f"default/fixed branch declares {expected_order}"
+        )
+        assert baseline["reordered"] is False
+
+
+def test_strip_adaptation_relabels_adaptive_header_to_the_fixed_variant_name():
+    # The variant relabel is the one run-header rewrite the projection does,
+    # and the parity gate compares the stripped log to the ``fixed`` baseline.
+    # Pin that explicitly so a future rename of ``FIXED.name`` (or a typo'd
+    # target string) fails this test rather than silently misnaming the arm.
+    adaptive = run(DEFAULT_SEED, CANONICAL_INPUT_LOG, variant=ADAPTIVE.name).to_jsonl()
+    stripped_header = json.loads(strip_adaptation(adaptive).splitlines()[0])
+    assert stripped_header["variant"] == FIXED.name
+    assert stripped_header["variant"] != ADAPTIVE.name

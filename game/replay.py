@@ -240,16 +240,23 @@ def _provenance_block(
     adaptations the block carries a ``baseline`` view: the values the mutated
     fields would have had under the identity baseline, sufficient on its own for
     :func:`strip_adaptation` to invert the transform from the log alone.
+
+    The baseline view is reconstructed from the slot itself (via
+    :data:`~game.variants.FIXED`), **not** from ``record.declared`` — which on a
+    branch slot is the revealed branch's scene, whose choice IDs are not
+    guaranteed to equal the default branch's. Reading from the slot keeps the
+    projection sound for any world whose branches diverge in their authored
+    choice set, not only the one whose branches happen to share an ID spine.
     """
     adapted = adapt_slot(slot, pre_state)
     if not adapted.adaptations:
         return None
-    baseline_branch = "fixed" if slot.fixed is not None else "default"
+    baseline_scene, baseline_branch = FIXED.select_scene(slot, pre_state)
     return {
         "adaptations": [a.to_dict() for a in adapted.adaptations],
         "baseline": {
             "branch_key": baseline_branch,
-            "offered_order": [c.id for c in record.declared.choices],
+            "offered_order": [c.id for c in baseline_scene.choices],
             "reordered": False,
         },
     }
