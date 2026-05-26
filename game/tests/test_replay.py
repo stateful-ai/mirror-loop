@@ -33,9 +33,11 @@ from game.replay import (
     CANONICAL_INPUT_LOG,
     DEFAULT_SEED,
     GOLDEN_FIXTURE,
+    JSONL_SPEC_VERSION,
     M1_CANONICAL_FIXTURE,
     SCHEMA_VERSION,
     RunResult,
+    canonical_dumps,
     canonical_run,
     load_golden,
     load_m1_canonical,
@@ -406,9 +408,14 @@ def test_m1_jsonl_fixture_is_well_formed_and_self_describing():
     records = [json.loads(line) for line in lines]
     head, *loops, tail = records
 
-    assert head == {
+    # Every record carries the canonical-spec stamps (`event_seq` logical
+    # clock, `event_id` content hash). Compare the run header by the fields
+    # the header is *responsible for*; the stamps are pinned by their own
+    # tests below so the assertion here stays specific.
+    head_body = {k: v for k, v in head.items() if k not in {"event_seq", "event_id"}}
+    assert head_body == {
         "type": "run",
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": JSONL_SPEC_VERSION,
         "seed": DEFAULT_SEED,
         "variant": BASELINE_VARIANT,
         "world": DEFAULT_WORLD.name,
@@ -422,7 +429,10 @@ def test_m1_jsonl_fixture_is_well_formed_and_self_describing():
     # serialization of the same run the JSON snapshot covers, not a parallel
     # universe with its own data path.
     expected_final = canonical_run().snapshot()["final_state"]
-    assert {k: v for k, v in tail.items() if k != "type"} == expected_final
+    tail_body = {
+        k: v for k, v in tail.items() if k not in {"type", "event_seq", "event_id"}
+    }
+    assert tail_body == expected_final
 
 
 def test_m1_jsonl_lines_are_compact_canonical_json():
@@ -432,7 +442,7 @@ def test_m1_jsonl_lines_are_compact_canonical_json():
     text = load_m1_canonical()
     for line in text.rstrip("\n").split("\n"):
         record = json.loads(line)
-        assert json.dumps(record, sort_keys=True, separators=(",", ":")) == line
+        assert canonical_dumps(record) == line
 
 
 def test_cli_check_m1_passes_against_the_committed_fixture(capsys):
@@ -451,3 +461,130 @@ def test_cli_check_m1_detects_drift(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr("game.replay.M1_CANONICAL_FIXTURE", stale)
     assert main(["--check-m1"]) == 1
     assert "FAIL" in capsys.readouterr().err
+
+
+# --- JSONL spec: logical clock, deterministic ids, pinned serialization --------
+# The three properties folded into the canonical JSONL spec
+# (:data:`JSONL_SPEC_VERSION`). Each test below is the byte-identity claim
+# expressed against one of those properties in isolation, so a regression in
+# (e.g.) the id derivation fails here rather than only through the committed
+# m1_canonical.jsonl diff.
+
+
+def test_every_jsonl_record_carries_event_seq_and_event_id():
+    # The two determinism-load-bearing stamps are present on every line —
+    # header, every loop, and the trailer alike. The clock is monotonic
+    # 0..N-1 across the whole stream (a single logical clock, not per-type).
+    records = canonical_run().jsonl_records()
+    assert [r["event_seq"] for r in records] == list(range(len(records)))
+    assert all(isinstance(r["event_id"], str) and len(r["event_id"]) == 16 for r in records)
+
+
+def test_event_ids_are_unique_per_run():
+    # Two records with identical bodies but different positions get distinct
+    # ids because event_seq is part of the hash input. In a real run every
+    # record's body is already unique; this is the defensive property.
+    records = canonical_run().jsonl_records()
+    ids = [r["event_id"] for r in records]
+    assert len(ids) == len(set(ids))
+
+
+def test_event_ids_are_deterministic_across_runs():
+    # The headline same-seed property *for ids*: two runs of the same
+    # ``(seed, input_log, variant, world)`` produce per-line-identical ids.
+    # A drift in any single field would localize to the one line whose id moved.
+    a = [r["event_id"] for r in canonical_run().jsonl_records()]
+    b = [r["event_id"] for r in canonical_run().jsonl_records()]
+    assert a == b
+
+
+def test_event_id_is_a_content_hash_of_the_rest_of_the_record():
+    # The id is derivable from the record itself — not from external state,
+    # not from a clock, not from a counter we have to trust. A third party
+    # reading a line can verify it.
+    from game.replay import _event_id_for
+
+    for record in canonical_run().jsonl_records():
+        body = {k: v for k, v in record.items() if k != "event_id"}
+        assert record["event_id"] == _event_id_for(body)
+
+
+def test_perturbing_a_single_field_moves_only_that_lines_event_id():
+    # The point of a per-line content hash: drift in one field is localized
+    # to one id. This is the "any single bit-flip in the canonical bytes is
+    # detectable, and *localized*" property.
+    from game.replay import _event_id_for
+
+    records = canonical_run().jsonl_records()
+    perturbed = [dict(r) for r in records]
+    # Flip a single character in one loop record's actual_action.
+    perturbed[2]["actual_action"] = perturbed[2]["actual_action"] + "_x"
+    body = {k: v for k, v in perturbed[2].items() if k != "event_id"}
+    new_id = _event_id_for(body)
+    assert new_id != records[2]["event_id"]
+    # The other lines' ids are independent of that mutation.
+    for i, (orig, mod) in enumerate(zip(records, perturbed)):
+        if i == 2:
+            continue
+        assert orig["event_id"] == _event_id_for(
+            {k: v for k, v in mod.items() if k != "event_id"}
+        )
+
+
+def test_canonical_dumps_is_insensitive_to_dict_insertion_order():
+    # The headline acceptance criterion: "insertion-order perturbation leaves
+    # canonical bytes unchanged". Two dicts built in opposite orders, with
+    # nested mappings whose keys are also inserted out of order, produce
+    # byte-identical output.
+    forward = {"a": 1, "b": {"x": 10, "y": 20}, "c": [1, 2, 3]}
+    reverse = {}
+    reverse["c"] = [1, 2, 3]
+    reverse["b"] = {}
+    reverse["b"]["y"] = 20
+    reverse["b"]["x"] = 10
+    reverse["a"] = 1
+    assert canonical_dumps(forward) == canonical_dumps(reverse)
+
+
+def test_canonical_dumps_pins_compact_separators_and_sorted_keys():
+    # The two visible knobs of the spec: no incidental whitespace, and
+    # alphabetical key order. Asserted on a small dict so a future drift in
+    # `canonical_dumps` (e.g. someone re-introducing `indent=`) is caught
+    # without re-running the full canonical pipeline.
+    assert canonical_dumps({"b": 1, "a": 2}) == '{"a":2,"b":1}'
+
+
+def test_canonical_dumps_refuses_nan_and_infinity():
+    # NaN/Infinity have no canonical JSON encoding; emitting them would
+    # produce JS-only tokens that aren't roundtrip-required. Refuse at
+    # serialization time so a future field that accidentally produced one
+    # fails loudly here rather than silently breaking the byte-identity gate.
+    with pytest.raises(ValueError):
+        canonical_dumps({"x": float("nan")})
+    with pytest.raises(ValueError):
+        canonical_dumps({"x": float("inf")})
+    with pytest.raises(ValueError):
+        canonical_dumps({"x": float("-inf")})
+
+
+def test_canonical_dumps_finite_floats_use_shortest_round_trip():
+    # Finite floats serialize with Python's shortest-round-trip repr — the
+    # same number on any platform produces the same string. This is what
+    # keeps a future field that *does* carry a float (e.g. a confidence
+    # value) byte-identical across hosts.
+    s1 = canonical_dumps({"v": 0.1 + 0.2})
+    s2 = canonical_dumps({"v": 0.1 + 0.2})
+    assert s1 == s2
+    # The shortest-round-trip property: parsing it back yields exactly the
+    # same float (and so the same string a second time).
+    assert canonical_dumps(json.loads(s1)) == s1
+
+
+def test_jsonl_run_header_uses_the_jsonl_spec_version_not_the_snapshot_version():
+    # The JSONL spec and the JSON snapshot are two independent
+    # serializations; the run record's ``schema_version`` stamps the JSONL
+    # spec, not the snapshot's `SCHEMA_VERSION`. Future contributors who bump
+    # one but not the other should not see this test fail — that's the
+    # point. It does fail if someone re-couples them in `jsonl_records`.
+    head = canonical_run().jsonl_records()[0]
+    assert head["schema_version"] == JSONL_SPEC_VERSION
