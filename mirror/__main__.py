@@ -13,6 +13,10 @@ Subcommands:
   the run prompts on stderr and reads from stdin. Both modes feed the same
   :func:`mirror.intake.seed_log`, so the emitted log is byte-identical for a
   given answer set.
+* ``validate-fixture FILE`` — shape-check an intake answers JSON fixture
+  against the current questionnaire schema. Prints ``OK`` and exits 0 on
+  success, or the first error and exits 1. The contract a CI fixture lint
+  relies on (``mirror/validate.py``).
 """
 
 from __future__ import annotations
@@ -28,6 +32,7 @@ from mirror.schema import (
     coherence_report,
     schema_fingerprint,
 )
+from mirror.validate import validate_fixture
 
 
 def _shape(spec) -> str:
