@@ -13,10 +13,13 @@ Subcommands:
   the run prompts on stderr and reads from stdin. Both modes feed the same
   :func:`mirror.intake.seed_log`, so the emitted log is byte-identical for a
   given answer set.
-* ``validate-fixture FILE`` — shape-check an intake answers JSON fixture
-  against the current questionnaire schema. Prints ``OK`` and exits 0 on
-  success, or the first error and exits 1. The contract a CI fixture lint
-  relies on (``mirror/validate.py``).
+* ``validate-fixture FILE [--strict]`` — shape-check an intake answers JSON
+  fixture against the current questionnaire schema. Prints ``OK`` and exits
+  0 on success; prints the first error on stderr and exits 1 on a malformed
+  fixture; exits 2 when the path is missing (a CI lint can branch on
+  "fixture wrong" vs "fixture not found" without parsing the message).
+  ``--strict`` also checks that every option the answers reference exists
+  in the schema today. Backed by ``mirror/validate.py``.
 * ``dump-events FILE [--type=TYPE] [--json]`` — read a saved event log JSON
   and print one line per event in a human-readable form,
   ``<turn>  <type>  <payload-summary>``. The turn is the count of
@@ -52,7 +55,7 @@ from mirror.schema import (
     coherence_report,
     schema_fingerprint,
 )
-from mirror.validate import validate_fixture
+from mirror.validate import MISSING_FILE_MARKER, validate_fixture
 
 
 def _shape(spec) -> str:
@@ -89,15 +92,32 @@ def _run_play(args: argparse.Namespace) -> int:
 
 
 def _run_validate_fixture(args: argparse.Namespace) -> int:
-    """Validate one fixture file; print ``OK`` (0) or the first error (1)."""
-    result = validate_fixture(args.fixture)
+    """Validate one fixture file.
+
+    Exit codes are deliberately distinct so a CI lint can branch on them
+    without scraping the error message:
+
+    * ``0`` — fixture is valid; prints ``OK`` on stdout.
+    * ``1`` — fixture is present but malformed (junk JSON, wrong shape,
+      unknown question/answer); first error on stderr.
+    * ``2`` — path does not exist; first error on stderr. Promoted from
+      the same :class:`~mirror.validate.FixtureValidation` failure that
+      :func:`~mirror.validate.validate_fixture` returns, by matching on
+      :data:`~mirror.validate.MISSING_FILE_MARKER`.
+    """
+    result = validate_fixture(args.fixture, strict=args.strict)
     if result.ok:
         print("OK")
         return 0
-    # Errors go to stderr so a caller redirecting stdout to /dev/null still sees
-    # why validation failed, matching the convention `play` already follows for
-    # its prompts.
+    # Errors go to stderr so a caller redirecting stdout to /dev/null still
+    # sees why validation failed, matching the convention `play` already
+    # follows for its prompts.
     print(result.error, file=sys.stderr)
+    # A missing path is a distinct failure mode and gets its own exit code so
+    # a CI lint can tell "this fixture is wrong" from "no fixture at this
+    # path" without parsing the message.
+    if result.error and result.error.startswith(MISSING_FILE_MARKER):
+        return 2
     return 1
 
 
@@ -279,6 +299,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "path to the answers fixture (a flat JSON object mapping "
             "question_id -> answer_id, the same shape `play --answers` reads)"
+        ),
+    )
+    vf.add_argument(
+        "--strict",
+        action="store_true",
+        help=(
+            "also require that every option the answers reference exists in "
+            "the schema today (catches a fixture written against an older or "
+            "removed answer option). The default validator already rejects "
+            "unknown answer ids — ``--strict`` is plumbed through today so the "
+            "CLI surface stays stable when stricter, opt-in checks land "
+            "(e.g. requiring a complete questionnaire)."
         ),
     )
     vf.set_defaults(_handler=_run_validate_fixture)
