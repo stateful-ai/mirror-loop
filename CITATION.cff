@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: 'If you reference Mirror Loop, please cite it as below.'
+type: software
+title: Mirror Loop
+abstract: An experimental adaptive narrative game prototype where the system learns from player choices.
+authors:
+  - family-names: Kosik
+    given-names: Aidan
+repository-code: https://github.com/stateful-ai/mirror-loop
+license: MIT
+version: 0.1.0
