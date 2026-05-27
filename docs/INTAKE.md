@@ -184,3 +184,39 @@ The unit test in
 pins this specific run, the per-question per-answer signal mappings, the
 determinism contract, the strict rejection of unknown keys, and the
 event-log round-trip.
+
+---
+
+## 5. Canonical fixtures — the caution/aggression pair
+
+The M1 Mirror axis is `caution ↔ aggression`
+([`mirror_loop_m1_founder_brief.md`](./mirror_loop_m1_founder_brief.md)
+"Mirror axis"), so the canonical answers checked into `fixtures/` come as
+a pair — one seed per pole — rather than as a single representative:
+
+- [`fixtures/seed42_answers.json`](../fixtures/seed42_answers.json) —
+  **caution-leaning** canonical input (`personal_growth` / `some_resistance`
+  / `talk` / `comply` / `nothing`). Seeds `risk_tolerance` toward the
+  cautious pole and `authority_trust` toward deferential. This file is
+  what the acceptance command line
+  `python -m mirror play --seed 42 --answers fixtures/seed42_answers.json`
+  reads from, and the byte-identity contract in
+  [`mirror/tests/test_play.py`](../mirror/tests/test_play.py) pins it.
+- [`fixtures/seed42_answers_aggression.json`](../fixtures/seed42_answers_aggression.json) —
+  **aggression-leaning** canonical input (`power_fantasy` / `tested` /
+  `fight` / `refuse` / `nothing`). Seeds `risk_tolerance` toward the
+  reckless pole and `authority_trust` toward defiant — the structural
+  opposite of the caution fixture on both axes the M1 adaptation layer
+  reads ([`game/flavor.py`](../../game/flavor.py)).
+
+The pair is what the "two-answer diverges visibly" DoD clause
+([`docs/founder_brief.md`](./founder_brief.md)) is verified against:
+`mirror/tests/test_play.py::test_seed42_caution_and_aggression_diverge_on_the_mirror_axis`
+asserts the two reduce to MirrorStates with **opposite signs** on both
+`risk_tolerance` and `authority_trust`, so the fixtures cannot drift into
+paraphrases of the same player without the gate noticing.
+
+Both files are flat
+`{ question_id → answer_id }` objects as defined in §2 — the same shape
+`load_answers` enforces — so either is droppable into the `--answers FILE`
+non-interactive path with no other code changes.
