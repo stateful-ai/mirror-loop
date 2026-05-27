@@ -348,6 +348,16 @@ is rejected before it can be promoted.
 7. Let the player fight back against the model.
 8. The system should feel predictive, not omniscient.
 
+## Project Layout
+
+- **mirror/** — adaptive narrative engine
+- **game/** — game data and content
+- **loop/** — main game loop
+- **runtime/** — runtime services
+- **acceptance/** — acceptance tests
+- **docs/** — design notes
+- **fixtures/** — golden fixtures for replay
+
 ## Concept Summary
 
 This project is a local-first adaptive narrative experiment where a player enters a personalized virtual experience and gradually discovers that the system is modeling them. The gameplay fantasy is not just surviving a dystopian AI lab. It is becoming unpredictable enough to escape a system that has learned how to keep you engaged.
