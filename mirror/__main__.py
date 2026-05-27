@@ -13,12 +13,20 @@ Subcommands:
   the run prompts on stderr and reads from stdin. Both modes feed the same
   :func:`mirror.intake.seed_log`, so the emitted log is byte-identical for a
   given answer set.
+* ``validate-fixture FILE [--strict]`` — statically validate an intake-answers
+  JSON fixture against the current questionnaire schema. Prints ``OK`` on
+  stdout and exits 0 on success; prints the first error on stderr and exits 1
+  on a malformed fixture; exits 2 when the path is missing (so a CI lint can
+  tell "fixture wrong" from "fixture not found" without parsing the message).
+  ``--strict`` also checks that every option the answers reference exists in
+  the schema today. Backed by :mod:`mirror.validate`.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from mirror.play import run as run_play_intake
 from mirror.schema import (
@@ -28,6 +36,7 @@ from mirror.schema import (
     coherence_report,
     schema_fingerprint,
 )
+from mirror.validate import validate_fixture
 
 
 def _shape(spec) -> str:
@@ -61,6 +70,35 @@ def _run_play(args: argparse.Namespace) -> int:
     if not log_json.endswith("\n"):
         sys.stdout.write("\n")
     return 0
+
+
+def _run_validate_fixture(args: argparse.Namespace) -> int:
+    """Validate one fixture file.
+
+    Exit codes:
+
+    * ``0`` — fixture is valid; prints ``OK`` on stdout.
+    * ``1`` — fixture is present but malformed; prints the first error on stderr.
+    * ``2`` — path does not exist; prints the first error on stderr. The separate
+      code lets a CI lint distinguish "fixture wrong" from "fixture not found"
+      without parsing the message.
+    """
+    # Missing-path is promoted to its own exit code here (not inside
+    # ``validate_fixture``) so the library function can keep returning a uniform
+    # structured result for every failure mode while the CLI surface still gives
+    # a CI lint a clean signal to branch on.
+    if not Path(args.fixture).exists():
+        print(f"fixture file {args.fixture!r} not found", file=sys.stderr)
+        return 2
+    result = validate_fixture(args.fixture, strict=args.strict)
+    if result.ok:
+        print("OK")
+        return 0
+    # Errors go to stderr so a caller redirecting stdout to /dev/null still sees
+    # why validation failed, matching the convention `play` already follows for
+    # its prompts.
+    print(result.error, file=sys.stderr)
+    return 1
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -98,6 +136,36 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     play.set_defaults(_handler=_run_play)
+
+    vf = subparsers.add_parser(
+        "validate-fixture",
+        help=(
+            "check an intake-answers JSON fixture's shape + semantics against "
+            "the current questionnaire schema; prints OK or the first error"
+        ),
+    )
+    vf.add_argument(
+        "fixture",
+        type=str,
+        metavar="FILE",
+        help=(
+            "path to the answers fixture (a flat JSON object mapping "
+            "question_id -> answer_id, the same shape `play --answers` reads)"
+        ),
+    )
+    vf.add_argument(
+        "--strict",
+        action="store_true",
+        help=(
+            "also require that every option the answers reference exists in "
+            "the schema today (catches a fixture written against an older or "
+            "removed answer option). Default behavior already rejects unknown "
+            "answer ids; --strict is here for the API surface a future "
+            "stricter check (e.g. full questionnaire required) plugs into."
+        ),
+    )
+    vf.set_defaults(_handler=_run_validate_fixture)
+
     return parser
 
 
