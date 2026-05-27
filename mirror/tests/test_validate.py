@@ -157,3 +157,52 @@ def test_cli_validate_fixture_subprocess_end_to_end():
     )
     assert proc.returncode == 0, proc.stderr
     assert proc.stdout.strip() == "OK"
+
+
+# --- exit-2-on-missing + --strict surface (the follow-up to PR #92) ----------
+
+
+def test_cli_validate_fixture_exits_two_on_missing_path(tmp_path, capsys):
+    """Missing path → exit code 2, distinct from "fixture is malformed".
+
+    The dedicated exit code lets a CI lint script tell "fixture wrong" from
+    "fixture not at this path" without parsing the error message. Pinning
+    this in a test means a future refactor can't silently fold it back into
+    exit code 1.
+    """
+    missing = tmp_path / "definitely_not_here.json"
+    rc = cli.main(["validate-fixture", str(missing)])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert captured.out == ""
+    assert "not found" in captured.err
+
+
+def test_cli_validate_fixture_strict_flag_accepts_seed42_fixture(capsys):
+    """``--strict`` is a no-op on a valid fixture (still OK, exit 0).
+
+    The strict flag MUST NOT break the canonical fixture — its purpose is to
+    reject *more*, not to break the things the runtime already accepts.
+    Together with the option-set check already being unconditional, this
+    pins the surface that future stricter checks plug into.
+    """
+    rc = cli.main(["validate-fixture", "--strict", str(SEED42_FIXTURE)])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert captured.out.strip() == "OK"
+
+
+def test_validate_fixture_missing_error_uses_marker(tmp_path):
+    """The library-level missing-file error starts with the documented marker.
+
+    The CLI keys off this marker to promote the failure to exit 2; if the
+    marker drifts the CLI silently downgrades to exit 1, which is exactly
+    the kind of contract regression a test should catch.
+    """
+    from mirror.validate import MISSING_FILE_MARKER
+
+    missing = tmp_path / "nope.json"
+    result = validate_fixture(missing)
+    assert not result.ok
+    assert result.error is not None
+    assert result.error.startswith(MISSING_FILE_MARKER)
