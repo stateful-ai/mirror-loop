@@ -17,15 +17,21 @@ from pathlib import Path
 import pytest
 
 from mirror import __main__ as cli
-from mirror.intake import QUESTIONNAIRE, seed_log
+from mirror.intake import QUESTIONNAIRE, seed_log, seed_state
 from mirror.log import EventLog
 from mirror.play import load_answers, prompt_answers, run
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SEED42_FIXTURE = REPO_ROOT / "fixtures" / "seed42_answers.json"
+SEED42_AGGRESSION_FIXTURE = REPO_ROOT / "fixtures" / "seed42_answers_aggression.json"
 
 
-# --- the committed seed42 fixture ---------------------------------------------
+# --- the committed seed42 fixtures --------------------------------------------
+#
+# The pair documents the caution- vs aggression-leaning canonical inputs the
+# M1 founder brief locks the Mirror axis to ("caution ↔ aggression"). Both
+# fixtures answer the full questionnaire so a downstream consumer can pick
+# either as a starting state and exercise the same intake path end-to-end.
 
 
 def test_seed42_answers_fixture_exists_and_is_a_full_questionnaire():
@@ -49,6 +55,58 @@ def test_seed42_answers_fixture_encodes_under_the_current_schema():
     log = seed_log(load_answers(SEED42_FIXTURE))
     assert isinstance(log, EventLog)
     assert len(log.events) == len(QUESTIONNAIRE)
+
+
+def test_seed42_aggression_fixture_exists_and_is_a_full_questionnaire():
+    """The aggression-leaning sibling exists and answers every catalog question."""
+    assert SEED42_AGGRESSION_FIXTURE.exists(), (
+        f"missing fixture {SEED42_AGGRESSION_FIXTURE}; this is the aggression-"
+        f"leaning canonical answers file the README 'Try it' block references "
+        f"alongside the caution-leaning default at {SEED42_FIXTURE}"
+    )
+    answers = load_answers(SEED42_AGGRESSION_FIXTURE)
+    assert set(answers) == {q.id for q in QUESTIONNAIRE}, (
+        "the aggression-leaning canonical fixture should answer every question "
+        "so it is a complete twin of the caution-leaning default"
+    )
+
+
+def test_seed42_aggression_fixture_encodes_under_the_current_schema():
+    """The aggression-leaning fixture's answers are valid under the live catalog."""
+    log = seed_log(load_answers(SEED42_AGGRESSION_FIXTURE))
+    assert isinstance(log, EventLog)
+    assert len(log.events) == len(QUESTIONNAIRE)
+
+
+def test_seed42_caution_and_aggression_diverge_on_the_mirror_axis():
+    """The pair seeds opposite leans on caution ↔ aggression.
+
+    The M1 brief locks the Mirror axis to ``caution ↔ aggression`` and the
+    DoD requires that two distinct answer sets produce a *visibly* divergent
+    run. The intake-only contract is the weaker, deterministic-from-answers
+    half of that: the two fixtures must reduce to MirrorStates whose
+    ``risk_tolerance`` and ``authority_trust`` signs are *opposite*, so any
+    downstream consumer that reads those axes sees two genuinely different
+    starting players rather than two paraphrases of the same one.
+    """
+    caution = seed_state(load_answers(SEED42_FIXTURE))
+    aggression = seed_state(load_answers(SEED42_AGGRESSION_FIXTURE))
+
+    caution_risk = float(caution.readings["risk_tolerance"].value)
+    aggression_risk = float(aggression.readings["risk_tolerance"].value)
+    assert caution_risk < 0.0 < aggression_risk, (
+        f"caution should seed risk_tolerance below 0 (cautious pole) and "
+        f"aggression above 0 (reckless pole); got "
+        f"{caution_risk=}, {aggression_risk=}"
+    )
+
+    caution_trust = float(caution.readings["authority_trust"].value)
+    aggression_trust = float(aggression.readings["authority_trust"].value)
+    assert aggression_trust < 0.0 < caution_trust, (
+        f"caution should seed authority_trust above 0 (deferential) and "
+        f"aggression below 0 (defiant); got "
+        f"{caution_trust=}, {aggression_trust=}"
+    )
 
 
 # --- load_answers: shape + error messages -------------------------------------

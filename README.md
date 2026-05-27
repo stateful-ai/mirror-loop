@@ -21,6 +21,15 @@ python -m game --variant fixed  # the baseline arm — UX-identical minus the ad
 
 Pick `1` (the kindness option) three loops in a row. On **loop 3 — Recalibration — the Reflection beat fires**: one sentence of claim, `Mirror noticed: you chose kindness in 3 of 3 moments so far.`, followed by one sentence of in-fiction evidence quoted verbatim from the three choices you just made. The Mirror announces each pattern once and reads as **observation, not accusation** ([`docs/core_loop_feel.md`](docs/core_loop_feel.md) §4). On loop 4 the adaptive run visibly re-orders the next scene so the predicted choice leads (`(the Mirror had moved 'c_wait' to the top — it expected that choice)`); the baseline does not. Both runs finish the five-loop spine and end with the Mirror's closing readout.
 
+The lab questionnaire that opens the run is captured by two canonical, byte-identical answer fixtures — the caution- and aggression-leaning seeds of the M1 ``caution ↔ aggression`` Mirror axis ([`docs/mirror_loop_m1_founder_brief.md`](docs/mirror_loop_m1_founder_brief.md) "Mirror axis"). Either can be fed in non-interactively so the run starts from a known seed state without a TTY prompt:
+
+```bash
+python -m mirror play --seed 42 --answers fixtures/seed42_answers.json             # caution-leaning seed
+python -m mirror play --seed 42 --answers fixtures/seed42_answers_aggression.json  # aggression-leaning seed
+```
+
+The two emit divergent intake logs — the caution fixture seeds ``risk_tolerance`` toward the cautious pole and ``authority_trust`` toward deferential; the aggression fixture seeds the opposites. That divergence is pinned in [`mirror/tests/test_play.py`](mirror/tests/test_play.py) so the pair cannot rot into paraphrases of the same player.
+
 ## Core Premise
 
 The game begins in a utopian-feeling research lab. The player has volunteered for an experimental personalized virtual experience. They complete a questionnaire describing what kind of experience they want: tone, challenge level, preferred problem-solving style, emotional boundaries, and genre preferences.
