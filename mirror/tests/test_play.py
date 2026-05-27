@@ -18,8 +18,8 @@ import pytest
 
 from mirror import __main__ as cli
 from mirror.intake import QUESTIONNAIRE, seed_log, seed_state
-from mirror.log import EventLog
-from mirror.play import load_answers, prompt_answers, run
+from mirror.log import ChoiceObserved, EventLog, TurnAdvanced
+from mirror.play import build_envelope, load_answers, prompt_answers, run
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SEED42_FIXTURE = REPO_ROOT / "fixtures" / "seed42_answers.json"
@@ -319,3 +319,96 @@ def test_subprocess_invocation_runs_with_no_tty_input():
     assert result.stderr == b""  # no TTY prompts went to stderr
     log = EventLog.from_json(result.stdout.decode("utf-8"))
     assert log == seed_log(load_answers(SEED42_FIXTURE))
+
+
+# --- ``play --json`` session-envelope shape -----------------------------------
+#
+# The envelope is the stable contract a downstream consumer ingests. These
+# tests pin the four documented top-level keys, the per-event shape of
+# ``axis_path``, and that the existing raw-EventLog stdout payload is preserved
+# when ``--json`` is omitted (the default text output stays unchanged).
+
+
+def test_cli_play_json_envelope_has_the_documented_top_level_shape(capsys):
+    """``play --answers FILE --json`` prints exactly the envelope contract."""
+    rc = cli.main(
+        ["play", "--seed", "42", "--answers", str(SEED42_FIXTURE), "--json"]
+    )
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert captured.err == ""  # the --answers mode is still silent
+
+    envelope = json.loads(captured.out)
+    # The four top-level keys are the locked envelope shape; refuse extras so a
+    # later, accidental field doesn't silently widen the contract.
+    assert set(envelope) == {"seed", "ticks", "final_state_summary", "axis_path"}
+
+    # ``seed`` echoes the int value the CLI was invoked with.
+    assert envelope["seed"] == 42
+    # Intake emits only ChoiceObserved events, so the tick count is 0.
+    assert envelope["ticks"] == 0
+    # ``final_state_summary`` matches the same MirrorState the EventLog reduces
+    # to — the envelope is a *view over* the existing source of truth, never
+    # a divergent recomputation.
+    log = seed_log(load_answers(SEED42_FIXTURE))
+    assert envelope["final_state_summary"] == log.reduce().snapshot()
+
+
+def test_cli_play_json_axis_path_has_one_entry_per_event_in_order(capsys):
+    """``axis_path`` walks the log step-by-step with the per-axis values."""
+    rc = cli.main(
+        ["play", "--seed", "0", "--answers", str(SEED42_FIXTURE), "--json"]
+    )
+    captured = capsys.readouterr()
+    assert rc == 0
+
+    envelope = json.loads(captured.out)
+    log = seed_log(load_answers(SEED42_FIXTURE))
+    axis_path = envelope["axis_path"]
+
+    # One entry per event, in the same order as the log.
+    assert isinstance(axis_path, list)
+    assert len(axis_path) == len(log.events)
+
+    # Every entry carries the same documented keys; ``step`` is the 0-based
+    # index, ``event_type`` is the discriminator the log already uses, and
+    # ``values`` is a dict of axis-name -> scalar-or-list. The last entry's
+    # values must equal the final-state summary's values (round-tripping the
+    # invariant that the last step is the reduced state).
+    for step, entry in enumerate(axis_path):
+        assert set(entry) == {"step", "event_type", "values"}
+        assert entry["step"] == step
+        assert entry["event_type"] in {
+            ChoiceObserved.EVENT_TYPE,
+            TurnAdvanced.EVENT_TYPE,
+        }
+        assert isinstance(entry["values"], dict)
+
+    final_values = {
+        name: reading["value"]
+        for name, reading in envelope["final_state_summary"].items()
+    }
+    assert axis_path[-1]["values"] == final_values
+
+
+def test_build_envelope_counts_turn_advanced_events_as_ticks():
+    """``ticks`` is the number of TurnAdvanced events in the log."""
+    # Build a synthetic log: 2 choices interleaved with 3 turn boundaries. This
+    # is the gameplay-phase shape the field will carry once the loop lands, so
+    # the count contract has to hold for any log — not just the intake-only one.
+    log = EventLog(
+        events=(
+            TurnAdvanced(),
+            ChoiceObserved(choice_id="c1"),
+            TurnAdvanced(),
+            ChoiceObserved(choice_id="c2"),
+            TurnAdvanced(),
+        )
+    )
+    envelope = build_envelope(log, seed=7)
+    assert envelope["seed"] == 7
+    assert envelope["ticks"] == 3
+    assert len(envelope["axis_path"]) == 5
+    # First and last entries' event_type discriminators line up with the log.
+    assert envelope["axis_path"][0]["event_type"] == TurnAdvanced.EVENT_TYPE
+    assert envelope["axis_path"][-1]["event_type"] == TurnAdvanced.EVENT_TYPE

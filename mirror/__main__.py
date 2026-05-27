@@ -6,13 +6,16 @@ Subcommands:
   coherence report. Exit code is 0 when coherent, 1 otherwise. Preserved as the
   default so existing references to ``python -m mirror`` (README, docstrings,
   founder brief) keep working.
-* ``play [--seed N] [--answers FILE]`` — run the questionnaire intake and emit
-  the resulting :class:`~mirror.log.EventLog` as JSON on stdout. With
+* ``play [--seed N] [--answers FILE] [--json]`` — run the questionnaire intake
+  and emit the resulting :class:`~mirror.log.EventLog` as JSON on stdout. With
   ``--answers FILE`` the run is non-interactive and reads ``{question_id:
   answer_id}`` from a JSON file (the CI / fixture-capture mode); without it
   the run prompts on stderr and reads from stdin. Both modes feed the same
   :func:`mirror.intake.seed_log`, so the emitted log is byte-identical for a
-  given answer set.
+  given answer set. With ``--json`` the stdout payload is the session envelope
+  ``{seed, ticks, final_state_summary, axis_path}`` (see
+  :func:`mirror.play.build_envelope`) instead of the raw event log; the
+  default output is unchanged when the flag is omitted.
 * ``validate-fixture FILE`` — shape-check an intake answers JSON fixture
   against the current questionnaire schema. Prints ``OK`` and exits 0 on
   success, or the first error and exits 1. The contract a CI fixture lint
@@ -22,9 +25,11 @@ Subcommands:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 
-from mirror.play import run as run_play_intake
+from mirror.log import EventLog
+from mirror.play import build_envelope, run as run_play_intake
 from mirror.schema import (
     MIRROR_SCHEMA,
     SCHEMA_VERSION,
@@ -62,6 +67,15 @@ def render_schema() -> int:
 
 def _run_play(args: argparse.Namespace) -> int:
     log_json = run_play_intake(seed=args.seed, answers_path=args.answers)
+    if args.json:
+        # ``--json`` envelope mode: reduce the same log the default path
+        # emitted and print the envelope instead. The plain log-JSON output is
+        # intentionally suppressed so a consumer can pipe the envelope without
+        # having to peel a second JSON document off the front.
+        envelope = build_envelope(EventLog.from_json(log_json), seed=args.seed)
+        sys.stdout.write(json.dumps(envelope, indent=2, sort_keys=True))
+        sys.stdout.write("\n")
+        return 0
     sys.stdout.write(log_json)
     if not log_json.endswith("\n"):
         sys.stdout.write("\n")
@@ -113,6 +127,16 @@ def _build_parser() -> argparse.ArgumentParser:
             "JSON file mapping question_id -> answer_id (docs/INTAKE.md §2). "
             "If set, the intake runs non-interactively with no TTY prompts — "
             "the mode CI and fixture capture use."
+        ),
+    )
+    play.add_argument(
+        "--json",
+        action="store_true",
+        help=(
+            "Emit a session envelope "
+            "({seed, ticks, final_state_summary, axis_path}) on stdout "
+            "instead of the raw EventLog JSON. The default text output is "
+            "unchanged when this flag is omitted."
         ),
     )
     play.set_defaults(_handler=_run_play)

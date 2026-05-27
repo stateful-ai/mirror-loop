@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Callable
 
 from mirror.intake import QUESTIONNAIRE, seed_log
+from mirror.log import EventLog, TurnAdvanced, event_to_dict, scan
 
 
 def load_answers(path: str | Path) -> dict[str, str]:
@@ -111,6 +112,56 @@ def prompt_answers(
                 break
             write("  (enter the number of a listed answer, or blank to skip)\n")
     return answers
+
+
+def _axis_value(value):
+    """Return a JSON-friendly view of an axis value (scalar or list)."""
+    if isinstance(value, tuple):
+        return [float(v) for v in value]
+    return float(value)
+
+
+def build_envelope(log: EventLog, *, seed: int) -> dict:
+    """Build the ``--json`` session envelope for ``log``.
+
+    Shape (pinned by tests):
+
+    * ``seed`` — the gameplay seed the CLI was invoked with. Held verbatim so a
+      downstream consumer can correlate the envelope with the invocation, even
+      though intake is deterministic from the answers alone.
+    * ``ticks`` — the count of :class:`~mirror.log.TurnAdvanced` events in the
+      log. Intake emits none today, so the value is ``0`` for an intake-only
+      run; this is the same field the gameplay phase will populate when it
+      lands.
+    * ``final_state_summary`` — :meth:`~mirror.state.MirrorState.snapshot`
+      after reducing the log, the same display-rounded view every other
+      consumer renders.
+    * ``axis_path`` — one entry per event in order: ``{step, event_type,
+      values}``, where ``values`` is the per-axis value *after* that event
+      (scalar for unit/bipolar, list for distribution). A reader can trace
+      how each axis moved across the session without re-running the reducer.
+    """
+    final_state = log.reduce()
+    axis_path: list[dict] = []
+    for step, (event, state) in enumerate(zip(log.events, scan(log.events))):
+        event_dict = event_to_dict(event)
+        axis_path.append(
+            {
+                "step": step,
+                "event_type": event_dict["event_type"],
+                "values": {
+                    name: _axis_value(reading.value)
+                    for name, reading in state.readings.items()
+                },
+            }
+        )
+    ticks = sum(1 for event in log.events if isinstance(event, TurnAdvanced))
+    return {
+        "seed": seed,
+        "ticks": ticks,
+        "final_state_summary": final_state.snapshot(),
+        "axis_path": axis_path,
+    }
 
 
 def run(
