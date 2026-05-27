@@ -20,4 +20,4 @@ packages = ["acceptance", "mirror", "loop", "game", "game.scenes", "guardrails",
 "game.scenes" = ["data/*.scene", "data/act1/*.scene"]
 
 [tool.pytest.ini_options]
-testpaths = ["acceptance/tests", "mirror/tests", "loop/tests", "game/tests", "guardrails/tests", "runtime/tests", "llmbench/tests", "latency/tests", "telemetry/tests"]
+testpaths = ["acceptance/tests", "mirror/tests", "loop/tests", "game/tests", "guardrails/tests", "runtime/tests", "llmbench/tests", "latency/tests", "telemetry/tests", "tests"]

@@ -19,7 +19,8 @@ test:
 # minus the acceptance entry.
 test-fast:
 	pytest mirror/tests loop/tests game/tests guardrails/tests \
-	       runtime/tests llmbench/tests latency/tests telemetry/tests
+	       runtime/tests llmbench/tests latency/tests telemetry/tests \
+	       tests
 
 lint:
 	@echo "No linter is configured for this repo yet — skipping."
