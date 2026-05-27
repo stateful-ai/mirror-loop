@@ -13,6 +13,10 @@ Subcommands:
   the run prompts on stderr and reads from stdin. Both modes feed the same
   :func:`mirror.intake.seed_log`, so the emitted log is byte-identical for a
   given answer set.
+* ``validate-fixture FILE`` — shape-check an intake answers JSON fixture
+  against the current questionnaire schema. Prints ``OK`` and exits 0 on
+  success, or the first error and exits 1. The contract a CI fixture lint
+  relies on (``mirror/validate.py``).
 """
 
 from __future__ import annotations
@@ -28,6 +32,7 @@ from mirror.schema import (
     coherence_report,
     schema_fingerprint,
 )
+from mirror.validate import validate_fixture
 
 
 def _shape(spec) -> str:
@@ -61,6 +66,19 @@ def _run_play(args: argparse.Namespace) -> int:
     if not log_json.endswith("\n"):
         sys.stdout.write("\n")
     return 0
+
+
+def _run_validate_fixture(args: argparse.Namespace) -> int:
+    """Validate one fixture file; print ``OK`` (0) or the first error (1)."""
+    result = validate_fixture(args.fixture)
+    if result.ok:
+        print("OK")
+        return 0
+    # Errors go to stderr so a caller redirecting stdout to /dev/null still sees
+    # why validation failed, matching the convention `play` already follows for
+    # its prompts.
+    print(result.error, file=sys.stderr)
+    return 1
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -98,6 +116,25 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     play.set_defaults(_handler=_run_play)
+
+    vf = subparsers.add_parser(
+        "validate-fixture",
+        help=(
+            "check an intake-answers JSON fixture's shape + semantics against "
+            "the current questionnaire schema; prints OK or the first error"
+        ),
+    )
+    vf.add_argument(
+        "fixture",
+        type=str,
+        metavar="FILE",
+        help=(
+            "path to the answers fixture (a flat JSON object mapping "
+            "question_id -> answer_id, the same shape `play --answers` reads)"
+        ),
+    )
+    vf.set_defaults(_handler=_run_validate_fixture)
+
     return parser
 
 
