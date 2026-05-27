@@ -2,6 +2,12 @@
 
 A local-first adaptive narrative game prototype where the player enters a dystopian research lab, signs up for a "personalized virtual experience," and slowly realizes the system is learning, predicting, and manipulating their in-game behavior.
 
+## Quick Start
+- Clone the repository: `git clone <repository-url>`
+- Install dependencies: `pip install -e .[dev]`
+- Run the existing tests: `pytest`
+- For more details, see [docs/](docs/)
+
 The project explores a game structure where a stable core engine is paired with dynamic content-generation agents. NPCs respond in free-form text, designer agents prepare future branches ahead of the player, and a player-model layer learns how the player behaves over time.
 
 ## Try it
