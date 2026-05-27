@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Callable
 
 from mirror.intake import QUESTIONNAIRE, seed_log
+from mirror.log import EventLog, TurnAdvanced, event_to_dict, scan
 
 
 def load_answers(path: str | Path) -> dict[str, str]:
