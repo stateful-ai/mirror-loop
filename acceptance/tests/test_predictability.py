@@ -134,9 +134,12 @@ def test_failing_fixture_fails():
 
 def test_cli_returns_zero_on_pass_and_one_on_fail(capsys):
     assert main([str(FIXTURES / "passing_session.json")]) == 0
+    out = capsys.readouterr().out
+    assert "PASS" in out
+
     assert main([str(FIXTURES / "failing_session.json")]) == 1
     out = capsys.readouterr().out
-    assert "PASS" in out and "FAIL" in out
+    assert "FAIL" in out
 
 
 def test_cli_usage_error_without_arg():
