@@ -35,7 +35,6 @@ from game.replay import (
     GOLDEN_FIXTURE,
     JSONL_SPEC_VERSION,
     M1_CANONICAL_FIXTURE,
-    SCHEMA_VERSION,
     RunResult,
     canonical_dumps,
     canonical_run,

@@ -31,7 +31,7 @@ from game.session import (
     scripted_policy,
     transcript,
 )
-from game.world import DEFAULT_WORLD, Slot, World
+from game.world import DEFAULT_WORLD, World
 
 
 # --- "player completes 3–5 loops in one session" -------------------------------
