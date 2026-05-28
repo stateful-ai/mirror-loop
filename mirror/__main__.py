@@ -47,6 +47,8 @@ from mirror.log import (
     TurnAdvanced,
     event_to_dict,
 )
+from mirror.loop import play as run_play_slice
+from mirror.play import load_answers as load_intake_answers
 from mirror.play import run as run_play_intake
 from mirror.schema import (
     MIRROR_SCHEMA,
@@ -84,10 +86,46 @@ def render_schema() -> int:
 
 
 def _run_play(args: argparse.Namespace) -> int:
-    log_json = run_play_intake(seed=args.seed, answers_path=args.answers)
-    sys.stdout.write(log_json)
-    if not log_json.endswith("\n"):
-        sys.stdout.write("\n")
+    """Dispatch the ``play`` subcommand.
+
+    Two modes share one subcommand:
+
+    * ``--answers FILE`` — the intake-only fixture-capture / CI mode. Emits the
+      :class:`mirror.log.EventLog` as canonical JSON on stdout, exactly as it
+      always has (preserved verbatim so existing CI lockstep stays intact).
+    * no ``--answers`` — the M1 slice (``mirror.loop.play``): Prologue → Act 1
+      → Recalibration → Act 2 entry, deterministic under ``--seed``, with
+      ``--baseline`` flipping the single adaptation seam to the identity. Emits
+      JSONL — one event per line — so a downstream consumer can stream the
+      run beat by beat. ``--intake FILE`` optionally seeds the slice with the
+      questionnaire answers from the same fixture shape the intake-only mode
+      reads.
+    """
+    if args.answers is not None:
+        log_json = run_play_intake(seed=args.seed, answers_path=args.answers)
+        sys.stdout.write(log_json)
+        if not log_json.endswith("\n"):
+            sys.stdout.write("\n")
+        return 0
+
+    intake_answers = (
+        load_intake_answers(args.intake) if args.intake is not None else None
+    )
+    if args.out is not None:
+        with open(args.out, "w", encoding="utf-8") as stream:
+            run_play_slice(
+                seed=args.seed,
+                baseline=args.baseline,
+                intake_answers=intake_answers,
+                out=stream,
+            )
+    else:
+        run_play_slice(
+            seed=args.seed,
+            baseline=args.baseline,
+            intake_answers=intake_answers,
+            out=sys.stdout,
+        )
     return 0
 
 
@@ -279,8 +317,43 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help=(
             "JSON file mapping question_id -> answer_id (docs/INTAKE.md §2). "
-            "If set, the intake runs non-interactively with no TTY prompts — "
-            "the mode CI and fixture capture use."
+            "If set, the command runs in **intake-only** mode: it emits the "
+            "questionnaire EventLog as canonical JSON on stdout and exits "
+            "(the fixture-capture / CI path). Without it, the command runs "
+            "the M1 slice (Prologue -> Act 1 -> Recalibration -> Act 2 "
+            "entry) and emits JSONL."
+        ),
+    )
+    play.add_argument(
+        "--baseline",
+        action="store_true",
+        help=(
+            "Run the slice with the adaptation seam set to the identity, so "
+            "the run is UX-identical to the adaptive arm minus the adaptation "
+            "layer. The M1 baseline-parity gate compares the two arms under "
+            "the same seed."
+        ),
+    )
+    play.add_argument(
+        "--intake",
+        type=str,
+        default=None,
+        metavar="FILE",
+        help=(
+            "Optional intake answers (same JSON shape as `--answers`) to seed "
+            "the slice's starting MirrorState. Without it, the slice starts "
+            "from a blank Mirror."
+        ),
+    )
+    play.add_argument(
+        "--out",
+        type=str,
+        default=None,
+        metavar="FILE",
+        help=(
+            "Write the slice's JSONL to FILE instead of stdout. Useful for "
+            "capturing a golden fixture; the byte stream is the same either "
+            "way (sorted keys, LF newlines)."
         ),
     )
     play.set_defaults(_handler=_run_play)
