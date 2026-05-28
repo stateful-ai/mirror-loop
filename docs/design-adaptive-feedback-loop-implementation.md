@@ -1,0 +1,13 @@
+## Doc: Adaptive Feedback Loop Implementation
+
+### Core loop
+The core loop involves the player making choices that influence the narrative, with the game adapting its responses based on the player's decisions. The fun hypothesis is that the adaptive nature of the game's responses creates a more engaging and personalized story, making the player feel like they are truly influencing the outcome.
+
+### Vertical slice
+For this vertical slice, the player will make a choice between two dialogue options during a conversation with another character. The game will adapt its response based on the player's choice, leading to a different outcome and further dialogue options. This slice is designed to be completed within a weekend, focusing on the initial interaction between the player's decision-making and the game's adaptive narrative.
+
+### Mechanics
+- **Dialogue Options:** Two distinct dialogue options will be presented to the player at a critical point in the conversation. Each option will have a clear and distinct impact on the narrative, such as shifting the mood of the scene (e.g., from tense to calm) or changing the alignment of the other character towards the player (e.g., from hostile to friendly).
+- **Adaptive Response:** Based on the player's choice, the game will provide a tailored response that changes the direction of the conversation. For example, choosing a more aggressive tone might lead to confrontation, while a more diplomatic approach could result in cooperation. The game will use a set of pre-authored responses that are selected based on the player's choice, ensuring a coherent and meaningful consequence.
+- **Deterministic Outcomes:** Each choice will lead to a predetermined set of outcomes, ensuring that the player experiences a coherent and meaningful consequence of their decision. These outcomes will be authored to provide a rich and varied narrative experience, with each choice leading to a different branch of the story.
+- **Dynamic Generation:** In rare instances, such as when the player chooses an unconventional path that diverges significantly from the main narrative arcs, the game may use dynamic generation to create unique dialogue and outcomes that fit the player's choices. This mechanism is triggered when the player's choices lead to a scenario not covered by the pre-authored content. The game uses a set of rules and templates to generate content that aligns with the established narrative themes and ensures that the dynamically generated content fits seamlessly into the overall story without breaking the player’s immersion or the story’s coherence.
