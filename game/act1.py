@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import random
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Callable
 
 from loop.core import Mirror, PlayerState, Scene
 

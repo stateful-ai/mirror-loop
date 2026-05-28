@@ -17,10 +17,8 @@ tests pin the contract:
 
 from __future__ import annotations
 
-import io
 import json
 
-import pytest
 
 from mirror.__main__ import iter_dump_lines, main
 from mirror.log import (

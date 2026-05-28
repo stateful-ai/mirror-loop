@@ -34,7 +34,6 @@ from game.playtest import (
     VERDICT_FAIL,
     VERDICT_INCONCLUSIVE,
     VERDICT_PASS,
-    ABResult,
     ArmResult,
     SimulatedPlayer,
     build_population,

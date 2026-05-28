@@ -30,7 +30,6 @@ from mirror.log import (
     event_to_dict,
     log_from_choices,
     reduce,
-    scan,
 )
 
 

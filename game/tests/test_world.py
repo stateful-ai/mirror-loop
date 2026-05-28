@@ -15,7 +15,6 @@ from game.world import (
     DEFAULT_WORLD,
     TENDENCY_PRIORITY,
     Slot,
-    World,
     dominant_tendency,
 )
 
