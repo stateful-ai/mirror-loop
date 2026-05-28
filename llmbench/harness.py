@@ -21,15 +21,20 @@ game loop (pinned by ``llmbench/tests/test_not_wired_into_loop.py``).
 
 from __future__ import annotations
 
+import argparse
+import json
 import math
+import os
+import sys
 from dataclasses import dataclass
+from typing import Sequence
 
 from game.world import DEFAULT_WORLD, World
 
 from .budget import CriticalPathFloor, render_floor
-from .client import LLMClient, SimulatedClient
+from .client import LiveClient, LLMClient, SimulatedClient
 from .metrics import mean, percentile
-from .models import CANDIDATE_MODELS, ModelSpec
+from .models import CANDIDATE_MODELS, ModelSpec, get_model
 from .prompts import (
     INSERTION_POINTS,
     InsertionPoint,
@@ -383,6 +388,86 @@ def render_report(report: Report) -> str:
     return "\n".join(lines)
 
 
+# --- CLI ----------------------------------------------------------------------
+
+
+_CLI_DESCRIPTION = (
+    "CLI for the cost/latency harness — `python -m llmbench`.\n\n"
+    "By default this runs the offline sweep (SimulatedClient): exact cost, modeled "
+    "latency, deterministic in (--seed, --trials) so the numbers in "
+    "docs/LLM_COST_LATENCY.md regenerate by running it with the defaults.\n\n"
+    "--live runs the live latency spike instead — the same sweep against the real "
+    "endpoint via LiveClient, reporting measured wall-clock latency and "
+    "provider-reported token usage. It needs ANTHROPIC_API_KEY and makes real "
+    "(billable) network calls, so keep --trials small and optionally pin one --model."
+)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Entry point for ``python -m llmbench``: run the sweep and print the report."""
+    parser = argparse.ArgumentParser(
+        prog="python -m llmbench", description=_CLI_DESCRIPTION
+    )
+    parser.add_argument(
+        "--trials",
+        type=int,
+        default=DEFAULT_TRIALS,
+        help=f"latency samples per prompt (default {DEFAULT_TRIALS}; "
+        "use a small value with --live to keep the spike short and cheap)",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=DEFAULT_SEED,
+        help=f"run seed; fixes the modeled latency jitter (default {DEFAULT_SEED})",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the report as JSON instead of markdown",
+    )
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="measure real latency against the live endpoint (needs ANTHROPIC_API_KEY; "
+        "makes billable calls). Default is the offline simulator.",
+    )
+    parser.add_argument(
+        "--model",
+        action="append",
+        metavar="NAME",
+        help="restrict the sweep to this candidate model (repeatable); "
+        "defaults to all candidates. Useful to keep a --live spike small.",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        models = (
+            tuple(get_model(name) for name in args.model)
+            if args.model
+            else CANDIDATE_MODELS
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    client = None
+    if args.live:
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            parser.error("--live requires ANTHROPIC_API_KEY in the environment")
+        client = LiveClient(api_key=api_key)
+
+    report = measure(
+        models=models, trials=args.trials, seed=args.seed, client=client
+    )
+
+    if args.json:
+        sys.stdout.write(json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n")
+    else:
+        sys.stdout.write(render_report(report) + "\n")
+    return 0
+
+
 __all__ = [
     "CallStats",
     "DEFAULT_SEED",
@@ -391,6 +476,7 @@ __all__ = [
     "SCHEMA_VERSION",
     "SessionCost",
     "SessionProfile",
+    "main",
     "measure",
     "render_report",
 ]

@@ -33,6 +33,7 @@ from .harness import (
     Report,
     SessionCost,
     SessionProfile,
+    main,
     measure,
     render_report,
 )
@@ -59,6 +60,7 @@ __all__ = [
     "build_corpus",
     "estimate_tokens",
     "get_model",
+    "main",
     "mean",
     "measure",
     "percentile",
